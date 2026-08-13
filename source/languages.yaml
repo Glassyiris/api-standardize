@@ -1,0 +1,4 @@
+languages:
+  - lang: en
+    path: en
+    DisplayAs: English
