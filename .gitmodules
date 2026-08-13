@@ -1,0 +1,3 @@
+[submodule "themes/cackle"]
+	path = themes/cackle
+	url = https://github.com/daeuniverse/hexo-theme-cackle

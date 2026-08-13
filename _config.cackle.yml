@@ -1,0 +1,76 @@
+# dae API - Cackle Theme Configuration
+
+# 侧边栏导航
+menu:
+  - title: Overview
+    file: index
+  - title: Version
+    file: docs/version
+  - title: Runtime Stats
+    file: docs/runtime-stats
+  - title: Node Latency
+    file: docs/node-latency
+  - title: Check Nodes
+    file: docs/check-nodes
+  - title: Groups
+    file: docs/groups
+  - title: Connections
+    file: docs/connections
+  - title: DNS Cache
+    file: docs/dns-cache
+  - title: Configuration
+    file: docs/configuration
+  - title: Reload
+    file: docs/reload
+  - title: Suspend
+    file: docs/suspend
+
+# 是否启用客户端搜索
+search: true
+
+# 代码块行号
+code_block_line_number: true
+
+# 页内目录最大层级
+toc_max_depth: 3
+
+# Mermaid 图表 CDN
+mermaid_cdn: https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js
+
+# 语言协商配置
+language_negotiation:
+  enabled: true
+  fallback: en
+
+# 品牌标识
+brand:
+  logo: i-menu-book
+  text: dae API
+  favicon: /images/favicon.svg
+
+# 首页内容
+home:
+  sections:
+    - hero
+    - features
+    - versions
+  hero_badge: dae API
+  hero_title: dae API Documentation
+  hero_subtitle: REST API for dae transparent proxy
+  hero_cta: Get Started
+  versions_title: Versions
+  versions_subtitle: Documentation versions
+  features:
+    - icon: i-history
+      title: Runtime Statistics
+      desc: Monitor real-time runtime statistics
+    - icon: i-light-mode
+      title: Node Latency
+      desc: Check latency of each node
+    - icon: i-search
+      title: DNS Cache
+      desc: Query and manage DNS cache
+
+# 底部信息
+footer:
+  text: dae © 2026 · Built with Hexo
