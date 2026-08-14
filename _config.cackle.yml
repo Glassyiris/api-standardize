@@ -6,8 +6,10 @@ menu:
     file: index
   - title: Version
     file: docs/version
-  - title: Runtime Stats
-    file: docs/runtime-stats
+  - title: API Configuration
+    file: docs/api-config
+  - title: Runtime Status
+    file: docs/runtime-status
   - title: Node Latency
     file: docs/node-latency
   - title: Check Nodes
@@ -16,6 +18,8 @@ menu:
     file: docs/groups
   - title: Connections
     file: docs/connections
+  - title: DNS Query
+    file: docs/dns-query
   - title: DNS Cache
     file: docs/dns-cache
   - title: Configuration

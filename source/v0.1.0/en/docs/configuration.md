@@ -19,8 +19,10 @@ Host: localhost:9527
 
 ```json
 {
+  "api": {
+    "port": 9527
+  },
   "global": {
-    "api_port": 9527,
     "log_level": "info"
   },
   "groups": [
@@ -39,10 +41,10 @@ Host: localhost:9527
 
 The response mirrors the dae configuration file structure. See [dae documentation](https://dae.universe.ingress/) for full field details.
 
+> **Note:** This endpoint returns a sanitized view of the configuration. Sensitive fields like `api.token` are not included in the response.
+
 ## Example
 
 ```bash
 curl http://localhost:9527/api/config
 ```
-
-> **Note:** This endpoint returns a sanitized view of the configuration. Sensitive fields like `api_token` are not included in the response.

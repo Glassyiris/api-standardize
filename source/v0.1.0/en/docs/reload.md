@@ -48,4 +48,4 @@ Content-Length: 0
 curl -X POST http://localhost:9527/api/reload
 ```
 
-> **Note:** Reload is an asynchronous operation. Use `GET /api/runtime/stats` or `GET /api/config` to verify the new configuration is active.
+> **Note:** Reload is an asynchronous operation. Use `GET /api/runtime/status` or `GET /api/config` to verify the new configuration is active.
