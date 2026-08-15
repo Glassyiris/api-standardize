@@ -2,15 +2,27 @@
 menu:
   - title: Overview
     file: index
+  - title: Discovery
+    file: docs/discovery
   - title: Version
     file: docs/version
+  - title: Capabilities
+    file: docs/capabilities
   - title: API Configuration
     file: docs/api-config
-  - title: Runtime Status
+  - title: Errors
+    file: docs/errors
+  - title: Operations
+    file: docs/operations
+  - title: Runtime
     file: docs/runtime-status
-  - title: Node Latency
+  - title: Runtime Memory
+    file: docs/runtime-memory
+  - title: Datapath
+    file: docs/datapath
+  - title: Nodes
     file: docs/node-latency
-  - title: Check Nodes
+  - title: Probes
     file: docs/check-nodes
   - title: Groups
     file: docs/groups
@@ -20,7 +32,7 @@ menu:
     file: docs/dns-query
   - title: DNS Cache
     file: docs/dns-cache
-  - title: Configuration
+  - title: Configuration (Deferred)
     file: docs/configuration
   - title: Reload
     file: docs/reload

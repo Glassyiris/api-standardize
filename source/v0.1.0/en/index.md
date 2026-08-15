@@ -15,12 +15,15 @@ client to:
 
 - Monitor real-time traffic statistics
 - Discover engine capabilities and datapath visibility
-- Read sanitized runtime, configuration, routing, node, group, and DNS state
+- Read sanitized runtime, routing, node, group, and DNS state
 - Start typed probes without conflating TCP reachability with proxy latency
 - Track asynchronous reload/suspend operations
 - Observe only the connections and counters the running datapath can actually see
 
-All requests and responses use **JSON** (`Content-Type: application/json`). No other formats are supported.
+All requests and responses use **JSON** (`Content-Type: application/json`). No
+other formats are supported. Native responses send `Cache-Control: no-store`
+and `X-Content-Type-Options: nosniff`; bearer credentials are never accepted in
+a URL query parameter.
 
 ## Quick Start
 
@@ -29,19 +32,18 @@ All requests and responses use **JSON** (`Content-Type: application/json`). No o
 The draft native listener uses `/api`. honk currently
 configures its Clash-compatible listener with `experimental.clash_api`; the
 referenced dae/kdae branch currently has no general REST listener and exposes
-reload/suspend through CLI and signals. See [API Configuration](docs/api-config)
+reload/suspend through CLI and signals. See [API Configuration](docs/api-config.html)
 for the proposed shared listener contract.
 
-```
-experimental {
-    clash_api {
-        external_controller: '127.0.0.1:9090'
-        secret: 'use-a-random-secret'
-    }
+```dae
+api {
+    listen: '127.0.0.1:9527'
+    secret: 'replace-with-a-random-secret'
+    allow_origins: ['http://127.0.0.1:3000']
 }
 ```
 
-The native listener is loopback-only by default. See [API Configuration](docs/api-config)
+The native listener is loopback-only by default. See [API Configuration](docs/api-config.html)
 for the shared listener, authentication, and CORS contract.
 
 ### Base URL
@@ -59,8 +61,6 @@ If a bearer secret is configured, include it in requests:
 Authorization: Bearer <your-token>
 ```
 
-> **Note for frontend developers:** If you store the token in a cookie, make sure the token is not leaked. Serve the API over HTTPS and set the cookie with `Secure`, `HttpOnly` and `SameSite=Strict`, and never expose the token in URLs, logs, or client-side scripts.
-
 ## API Version
 
 Native API status: **draft**
@@ -73,9 +73,8 @@ Native API status: **draft**
 | GET | `/api/version` | Native engine version and API identity |
 | GET | `/api/capabilities` | Feature and visibility negotiation |
 | GET | `/api/runtime` | Runtime, active generation, eBPF summary, and visible counters |
+| GET | `/api/runtime/memory` | Lightweight process, cgroup, and eBPF memory snapshot |
 | GET | `/api/datapath` | Detailed eBPF/datapath state and visibility |
-| GET | `/api/config` | Sanitized active configuration |
-| PATCH | `/api/config` | Atomic partial configuration update |
 | GET | `/api/nodes` | Nodes and typed health samples |
 | GET | `/api/groups` | List group summaries |
 | GET | `/api/groups/{groupId}` | Current group configuration, members, selection, and health |

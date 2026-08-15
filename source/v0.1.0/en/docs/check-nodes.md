@@ -48,79 +48,123 @@ When a nested group is tested, the result identifies both the requested member
 and the resolved leaf node. `leaves` expands nested groups for diagnostics and
 deduplicates the same leaf node.
 
-The probe uses the engine's configured health-check target and native policy
-semantics. It may change an automatic selection. The completed result reports
-`selection_changed`, `selection_before`, and `selection_after` when the engine
-exposes those values.
+`ip_version: any` expands to each IP family advertised by
+`GET /api/capabilities`, producing one result per tested family. The request
+cannot supply an arbitrary URL: the adapter uses the target's configured
+health-check endpoint. The URL, destination, port, address pinning, redirect,
+response-body, and timeout rules are the same SSRF policy defined by the group
+resource.
+
+The probe uses native policy semantics and may change an automatic selection.
+The completed result reports selection side effects independently for TCP and
+UDP.
 
 ## Response
 
 ### Accepted (202 Accepted)
 
+```http
+HTTP/1.1 202 Accepted
+Location: /api/operations/op-01HZX4K8W9
+Retry-After: 1
+Content-Type: application/json
+```
+
 ```json
 {
-  "operation_id": "probe-123",
+  "operation_id": "op-01HZX4K8W9",
+  "kind": "probe",
   "status": "queued",
-  "target": {
-    "type": "group",
-    "group_id": "group-proxy"
-  }
+  "href": "/api/operations/op-01HZX4K8W9"
 }
 ```
 
-Poll `GET /api/operations/{id}` for completion.
+Poll [`GET /api/operations/{id}`](operations.html) for completion.
 
 ### Completed result
 
 ```json
 {
-  "operation_id": "probe-123",
+  "operation_id": "op-01HZX4K8W9",
+  "kind": "probe",
   "status": "succeeded",
-  "selection_changed": true,
-  "selection_before": "node-us-01",
-  "selection_after": "node-hk-01",
-  "results": [
-    {
-      "member_id": "node-hk-01",
-      "resolved_leaf_node_id": "node-hk-01",
-      "transport": "tcp",
-      "ip_version": "ipv4",
-      "state": "healthy",
-      "latency_ms": 45,
-      "observed_at": "2026-08-15T10:00:00Z"
+  "created_at": "2026-08-15T09:59:59Z",
+  "started_at": "2026-08-15T10:00:00Z",
+  "finished_at": "2026-08-15T10:00:01Z",
+  "result": {
+    "target": {
+      "type": "group",
+      "group_id": "group-proxy"
     },
-    {
-      "member_id": "group-jp",
-      "resolved_leaf_node_id": "node-jp-01",
-      "transport": "udp",
-      "ip_version": "ipv4",
-      "state": "unavailable",
-      "latency_ms": null,
-      "error": "udp_probe_timeout",
-      "observed_at": "2026-08-15T10:00:00Z"
-    }
-  ]
+    "selection_changed": {
+      "tcp": true,
+      "udp": false
+    },
+    "selection_before": {
+      "tcp": "node-us-01",
+      "udp": null
+    },
+    "selection_after": {
+      "tcp": "node-hk-01",
+      "udp": null
+    },
+    "results": [
+      {
+        "member_id": "node-hk-01",
+        "resolved_leaf_node_id": "node-hk-01",
+        "transport": "tcp",
+        "ip_version": "ipv4",
+        "state": "healthy",
+        "latency_ms": 45,
+        "error": null,
+        "observed_at": "2026-08-15T10:00:00Z"
+      },
+      {
+        "member_id": "group-jp",
+        "resolved_leaf_node_id": "node-jp-01",
+        "transport": "udp",
+        "ip_version": "ipv4",
+        "state": "unavailable",
+        "latency_ms": null,
+        "error": "udp_probe_timeout",
+        "observed_at": "2026-08-15T10:00:00Z"
+      }
+    ]
+  },
+  "error": null
 }
 ```
+
+### Limits
+
+The adapter enforces the limits advertised under `resources.probes.limits`:
+
+- fan-out above `max_members_per_job` returns `413 request_too_large`;
+- projected results above `max_results_per_job` return `413` before dispatch;
+- per-target concurrency and principal/global rates return `429 rate_limited`
+  with `Retry-After`;
+- a full bounded queue returns `503 temporarily_unavailable` with
+  `Retry-After`; and
+- the complete job stops at `job_timeout_ms`, with unfinished samples reported
+  as `unavailable` and `probe_deadline_exceeded`.
 
 ### Result fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| operation_id | string | Probe operation identifier. |
-| status | string | `queued`, `running`, `succeeded`, or `failed`. |
-| selection_changed | bool | Whether the native policy changed a selection during the probe. |
-| selection_before | string or null | Selection before the probe, when available. |
-| selection_after | string or null | Selection after the probe, when available. |
-| results | array | One typed result per requested member, transport, and IP version. |
-| results[].member_id | string | Direct group member or node that the caller targeted. |
-| results[].resolved_leaf_node_id | string or null | Actual leaf node tested for a group member. |
-| results[].transport | string | Transport tested. |
-| results[].ip_version | string | IP family tested. |
-| results[].state | string | `healthy`, `unavailable`, or `unknown`. |
-| results[].latency_ms | number or null | Measured latency. Unknown or failed measurements are `null`, never `0`. |
-| results[].observed_at | string | RFC3339 observation timestamp. |
-| results[].error | string or null | Machine-readable failure reason, when present. |
+| result.target | object | Node or group that was tested. |
+| result.selection_changed | object | Whether TCP or UDP selection changed. |
+| result.selection_before | object | TCP and UDP member IDs before the probe, or `null`. |
+| result.selection_after | object | TCP and UDP member IDs after the probe, or `null`. |
+| result.results | array | One typed result per member, transport, and tested IP family. |
+| result.results[].member_id | string | Direct group member or node targeted. |
+| result.results[].resolved_leaf_node_id | string or null | Actual leaf node tested. |
+| result.results[].transport | string | `tcp` or `udp`. |
+| result.results[].ip_version | string | `ipv4` or `ipv6`. |
+| result.results[].state | string | `healthy`, `unavailable`, or `unknown`. |
+| result.results[].latency_ms | number or null | Measured latency; failure is `null`, never `0`. |
+| result.results[].observed_at | string | Observation timestamp (RFC3339). |
+| result.results[].error | string or null | Safe machine-readable failure code. |
 
 ## Example
 

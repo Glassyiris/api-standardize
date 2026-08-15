@@ -6,7 +6,9 @@ title: Runtime
 
 > Draft endpoint. This read-only snapshot describes the running process, active
 > configuration generation, eBPF datapath summary, and traffic visible to the
-> engine. Detailed eBPF state is available from [`GET /api/datapath`](datapath).
+> engine. Detailed eBPF state is available from [`GET /api/datapath`](datapath.html),
+> and the independently pollable memory snapshot is available from
+> [`GET /api/runtime/memory`](runtime-memory.html).
 
 Runtime values are observations, not a promise that the engine can see every
 packet on the host. A value that is unsupported or not observable is `null`;
@@ -15,9 +17,12 @@ zero remains a valid measured value.
 ## Request
 
 ```http
-GET /api/runtime HTTP/1.1
+GET /api/runtime?detail=full HTTP/1.1
 Host: localhost:9527
 ```
+
+`detail=summary` is the default and omits `process.pid`. `detail=full` includes
+it when the adapter can observe it.
 
 ## Response
 
@@ -45,8 +50,10 @@ Host: localhost:9527
       "backend": "real",
       "programs": "loaded",
       "hooks": "attached",
-      "routing": "published",
-      "generation_id": "generation-42",
+      "routing": {
+        "state": "published",
+        "generation_id": "generation-42"
+      },
       "health": "healthy",
       "last_error": null,
       "checked_at": "2026-08-15T10:00:00Z"
@@ -73,12 +80,11 @@ Host: localhost:9527
   },
   "process": {
     "pid": 1234,
-    "rss_bytes": 67108864,
     "cpu_percent": null
   },
   "last_reload": {
-    "operation_id": "reload-123",
-    "state": "succeeded",
+    "operation_id": "op-01HZX4K8W7",
+    "status": "succeeded",
     "finished_at": "2026-08-15T09:30:00Z",
     "error": null
   }
@@ -90,7 +96,7 @@ Host: localhost:9527
 | Field | Type | Description |
 |-------|------|-------------|
 | observed_at | string | Snapshot timestamp (RFC3339). |
-| lifecycle.state | string | `starting`, `running`, `reloading`, `draining`, `degraded`, or `failed`. |
+| lifecycle.state | string | `starting`, `running`, `reloading`, `suspended`, `draining`, `degraded`, or `failed`. |
 | lifecycle.started_at | string | Process start time, when known. |
 | lifecycle.uptime_seconds | uint64 or null | Process uptime. |
 | generation.active_id | string | Opaque active runtime generation. |
@@ -106,8 +112,7 @@ Host: localhost:9527
 | traffic.connections | object | Currently visible TCP and UDP connections or sessions. |
 | traffic.bytes | object | Cumulative visible bytes. |
 | traffic.rates | object or null | Current rates. `null` when the engine cannot provide them. |
-| process.pid | uint32 or null | Engine process ID. |
-| process.rss_bytes | uint64 or null | Resident process memory. |
+| process.pid | uint32 or null, optional | Engine process ID with `detail=full`. |
 | process.cpu_percent | number or null | Process CPU usage when available. |
 | last_reload | object or null | Most recent reload operation and its result. |
 
@@ -118,7 +123,8 @@ The `datapath.ebpf` summary uses these states:
 | backend | `real`, `mock`, `unknown` | Backend used by the engine. |
 | programs | `loaded`, `not_loaded`, `error`, `unknown` | Whether eBPF programs are loaded. |
 | hooks | `attached`, `partially_attached`, `detached`, `unknown` | Whether required hooks are mounted. |
-| routing | `published`, `not_published`, `error`, `unknown` | Whether the active routing generation is visible to eBPF. |
+| routing.state | `published`, `not_published`, `error`, `unknown` | Whether routing is visible to eBPF. |
+| routing.generation_id | string or null | Generation currently published to eBPF. |
 | health | `healthy`, `degraded`, `failed`, `unknown` | Combined operational result. |
 
 `datapath.state` may be `active` only when the required programs, hooks, and
@@ -126,7 +132,11 @@ active routing publication are all valid. A loaded program alone is not an
 active datapath.
 
 > **Note:** Per-connection details and byte counters are available from
-> [`GET /api/connections`](connections). They carry the same visibility limits.
+> [`GET /api/connections`](connections.html). They carry the same visibility limits.
+
+Memory metrics are intentionally excluded from this snapshot so a dashboard
+can poll [`GET /api/runtime/memory`](runtime-memory.html) without repeatedly fetching
+generation, datapath, traffic, and reload state.
 
 During reload, the old active generation remains reported until the new
 generation has passed configuration validation and datapath publication. A
@@ -136,5 +146,5 @@ through `last_reload`.
 ## Example
 
 ```bash
-curl http://localhost:9527/api/runtime
+curl "http://localhost:9527/api/runtime?detail=full"
 ```

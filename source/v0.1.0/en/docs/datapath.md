@@ -5,7 +5,7 @@ title: Datapath
 # GET /api/datapath
 
 > Draft endpoint. Returns detailed datapath and eBPF state. The summary is
-> also included in [`GET /api/runtime`](runtime-status).
+> also included in [`GET /api/runtime`](runtime-status.html).
 
 The endpoint reports whether the datapath is loaded, attached, published, and
 usable. `programs: loaded` alone does not mean that traffic is being handled.
@@ -13,9 +13,13 @@ usable. `programs: loaded` alone does not mean that traffic is being handled.
 ## Request
 
 ```http
-GET /api/datapath HTTP/1.1
+GET /api/datapath?detail=full HTTP/1.1
 Host: localhost:9527
 ```
+
+`detail=summary` is the default and omits interface names, attachments, and map
+occupancy. `detail=full` includes the documented `attachments` and `maps`
+objects when available.
 
 ## Response
 
@@ -78,9 +82,9 @@ Host: localhost:9527
 | ebpf.maps.state | string | `ready`, `partial`, `error`, or `unknown`. |
 | ebpf.maps.conn_state | object or null | Conntrack occupancy when the backend exposes it. |
 | ebpf.health | string | `healthy`, `degraded`, `failed`, or `unknown`. |
-| ebpf.last_error | string or null | Latest machine-readable or redacted error. |
+| ebpf.last_error | string or null | Latest safe machine-readable error code. |
 | ebpf.checked_at | string | Time at which eBPF state was checked. |
-| errors | array | Current datapath errors that affect operation. |
+| errors | array | Current safe errors using `code`, `message`, and optional `details`. |
 
 The active generation reported by `ebpf.routing.generation_id` must match
 `generation.active_id` from `GET /api/runtime`. A staged or pending reload must
@@ -102,5 +106,5 @@ This endpoint is read-only. Reload and lifecycle actions use
 ## Example
 
 ```bash
-curl http://localhost:9527/api/datapath
+curl "http://localhost:9527/api/datapath?detail=full"
 ```

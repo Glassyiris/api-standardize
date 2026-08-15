@@ -6,8 +6,8 @@ title: DNS Cache
 
 > Draft endpoints: `GET /api/dns/cache`, `DELETE /api/dns/cache/{entry_id}`,
 > filtered `DELETE /api/dns/cache`, and `POST /api/dns/cache/flush`.
-> Cache introspection and mutations are independently capability-gated as
-> `dns_cache_read`, `dns_cache_delete`, and `dns_cache_flush`.
+> Cache introspection and mutations are independently declared under
+> `resources.dns_cache` by `GET /api/capabilities`.
 
 These endpoints operate on the engine's runtime DNS cache only. They do not
 flush the kernel conntrack table, the host stub resolver, an upstream DNS
@@ -26,7 +26,7 @@ walks the pages, so `cursor` is opaque and must not be manufactured by a
 client.
 
 ```http
-GET /api/dns/cache HTTP/1.1
+GET /api/dns/cache?detail=full HTTP/1.1
 Host: localhost:9527
 Accept: application/json
 ```
@@ -41,6 +41,7 @@ Accept: application/json
 | include_expired | bool | false | Include expired entries that have not yet been lazily evicted |
 | limit | int | 100 | Max entries to return; servers cap this value at 1000 |
 | cursor | string | - | Opaque cursor returned as `next_cursor` |
+| detail | string | summary | `summary` omits answer RDATA; `full` includes `answers`. |
 
 ## Response
 
@@ -48,7 +49,12 @@ Accept: application/json
 
 ```json
 {
-  "cache_revision": "dns-cache-42",
+  "observed_at": "2026-08-15T12:00:00Z",
+  "coverage": {
+    "positive": true,
+    "negative": true,
+    "persistent": false
+  },
   "entries": [
     {
       "entry_id": "dns-entry-01HZX4K8W5",
@@ -84,18 +90,20 @@ Accept: application/json
 }
 ```
 
-The collection response carries the current strong `ETag`, for example
-`ETag: "dns-cache-42"`. Clients should send that value as `If-Match` when
-performing a destructive operation based on the snapshot.
-
 ### Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| cache_revision | string | Opaque revision of the runtime cache; changes after a mutation |
+| observed_at | string | Snapshot timestamp (RFC3339). |
+| coverage | object | Cache classes represented by this endpoint. |
 | entries | array | DNS cache entries |
 | total | int | Number of entries matching the filters at snapshot time |
 | next_cursor | string | Opaque cursor for the next page, or `null` when complete |
+
+`coverage.positive` and `coverage.negative` must match the advertised
+`entry_kinds`. `coverage.persistent` declares whether entries outside the
+runtime in-memory cache are included. Implementations must not silently omit a
+cache class they claim to expose.
 
 ### Entry Object
 
@@ -106,7 +114,7 @@ performing a destructive operation based on the snapshot.
 | type | string | Question record type, such as `A`, `AAAA`, or `HTTPS` |
 | class | string | DNS question class, normally `IN` |
 | status | string | `NOERROR`, `NXDOMAIN`, `NODATA`, `SERVFAIL`, or another DNS result |
-| answers | array | Complete cached RRset; an entry is not one individual answer value |
+| answers | array, optional | Complete cached RRset with `detail=full`; an entry is not one individual answer value |
 | expires_at | string | Time at which the normal cache lifetime ends (RFC3339) |
 | stale_until | string | Optional optimistic-cache stale boundary (RFC3339) |
 
@@ -126,8 +134,17 @@ by the list endpoint. The ID must be URL-encoded as a path segment.
 ```http
 DELETE /api/dns/cache/dns-entry-01HZX4K8W5 HTTP/1.1
 Host: localhost:9527
-If-Match: "dns-cache-42"
 ```
+
+Deletion is idempotent and returns `200` whether the entry existed:
+
+```json
+{
+  "deleted": 1
+}
+```
+
+A retry after the entry is gone returns `deleted: 0`.
 
 ## Delete matching entries
 
@@ -141,7 +158,6 @@ and negative entries for that name.
 ```http
 DELETE /api/dns/cache?name=example.com.&type=A&type=AAAA HTTP/1.1
 Host: localhost:9527
-If-Match: "dns-cache-42"
 ```
 
 The response is successful even when no entries matched, which makes retries
@@ -150,8 +166,7 @@ safe:
 ```json
 {
   "matched": 2,
-  "deleted": 2,
-  "cache_revision": "dns-cache-43"
+  "deleted": 2
 }
 ```
 
@@ -166,8 +181,6 @@ cache. The request body is empty or `{}`.
 ```http
 POST /api/dns/cache/flush HTTP/1.1
 Host: localhost:9527
-If-Match: "dns-cache-43"
-Idempotency-Key: dns-flush-20260815-01
 Content-Length: 0
 ```
 
@@ -176,8 +189,7 @@ The server returns only after the invalidation barrier has been installed:
 ```json
 {
   "matched": 1024,
-  "deleted": 1024,
-  "cache_revision": "dns-cache-44"
+  "deleted": 1024
 }
 ```
 
@@ -192,19 +204,15 @@ again.
 |--------|------|---------|
 | 400 | `invalid_name` | The name is missing, malformed, or not canonicalizable |
 | 400 | `filter_required` | A collection delete did not include the required exact `name` |
-| 404 | `cache_entry_not_found` | The requested opaque entry ID is no longer present |
 | 404 | `capability_not_supported` | The running engine does not expose this cache operation |
-| 412 | `stale_cache_revision` | The supplied `If-Match` does not match the current cache revision |
 | 503 | `cache_unavailable` | The DNS cache cannot be inspected or mutated at this time |
 
 ## Example
 
 ```bash
-curl "http://localhost:9527/api/dns/cache?domain=google&limit=20"
+curl "http://localhost:9527/api/dns/cache?domain=google&limit=20&detail=full"
 curl -X DELETE \
-  -H 'If-Match: "dns-cache-42"' \
   "http://localhost:9527/api/dns/cache?name=example.com.&type=A"
 curl -X POST \
-  -H 'Idempotency-Key: dns-flush-manual-01' \
   "http://localhost:9527/api/dns/cache/flush"
 ```
