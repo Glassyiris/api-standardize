@@ -4,7 +4,13 @@ title: Connections
 
 # GET /api/connections
 
-Returns a list of active TCP and UDP connections, including real-time per-connection network speeds.
+> Draft endpoint. Use `GET /api/connections`.
+> dae real-direct flows can bypass userspace, so this list is not necessarily a
+> complete packet-flow inventory. Native responses label `observedBy` and use
+> `null` when a counter is unavailable.
+
+Returns a list of visible TCP and UDP connections, including per-connection
+network speeds where the observation plane provides them.
 
 ## Request
 
@@ -83,7 +89,9 @@ Host: localhost:9527
 | upload_rate | uint64 | Real-time upload speed (bytes/sec) |
 | download_rate | uint64 | Real-time download speed (bytes/sec) |
 
-> **Note:** Overall real-time network speed and connection totals are available from [`GET /api/runtime/status`](runtime-status.md).
+> **Note:** Overall visible network speed and connection totals are available
+> from [`GET /api/runtime`](runtime-status). The datapath may observe only a
+> subset of host traffic.
 
 ## Example
 

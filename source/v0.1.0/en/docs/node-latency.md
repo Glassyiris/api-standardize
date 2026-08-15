@@ -4,7 +4,11 @@ title: Node Latency
 
 # GET /api/nodes/latency
 
-Returns latency information for all configured nodes.
+> Draft endpoint. Use `GET /api/nodes` and `POST /api/probes`. A failed
+> measurement is `null` with a status
+> and reason, never `0 ms`.
+
+Returns the latest visible node measurements.
 
 ## Request
 
@@ -36,7 +40,7 @@ Host: localhost:9527
   {
     "node": "node3",
     "group": "proxy",
-    "latency_ms": 0,
+    "latency_ms": null,
     "alive": false,
     "last_check": "2026-08-13T11:59:30Z"
   }
@@ -49,7 +53,7 @@ Host: localhost:9527
 |-------|------|-------------|
 | node | string | Node name |
 | group | string | Group name |
-| latency_ms | int64 | Latency in milliseconds (0 if unknown) |
+| latency_ms | number or null | Latency in milliseconds; `null` if unknown or failed |
 | alive | bool | Whether node is reachable |
 | last_check | string | Last check timestamp (RFC3339) |
 

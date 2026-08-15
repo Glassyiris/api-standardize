@@ -4,9 +4,37 @@ title: API Configuration
 
 # API Configuration
 
-The API module is configured independently of the rest of the dae configuration. Its settings live in a top-level `api { }` block of the `.dae` file, separate from `global { }`. The block may also be placed in a separate included file (see the `include` section of the dae configuration) if you prefer to keep it isolated.
+> This page is retained as a configuration draft for the proposed native
+> contract. Current honk uses
+> `experimental.clash_api.external_controller` and `secret`; the referenced
+> dae/kdae branch has no general REST listener. A top-level `api { }` block is
+> therefore a proposed adapter configuration, not an existing dae feature.
 
-## Example `.dae`
+The shared adapter should use a single listen address, an opaque bearer secret,
+and explicit CORS origins. Interface-name wildcards and regexes are not part of
+the native contract because they make binding and authorization ambiguous.
+
+## Proposed native listener fields
+
+```dae
+api {
+    listen: '127.0.0.1:9527'
+    secret: 'replace-with-a-random-secret'
+    allow_origins: ['http://127.0.0.1:3000']
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| listen | address | yes | One explicit host and port. Loopback is the default deployment. |
+| secret | string | no | Opaque bearer secret; required for non-loopback exposure. |
+| allow_origins | string array | no | Explicit browser origins. Empty means browser CORS is disabled. |
+
+The exact configuration section is engine-owned: honk currently uses
+`experimental.clash_api.external_controller` and `secret`, while dae/kdae
+needs an adapter implementation before this block becomes active.
+
+## Legacy draft example
 
 ```
 api {
@@ -26,7 +54,7 @@ api {
 }
 ```
 
-## Fields
+## Legacy draft fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -79,7 +107,7 @@ openssl rand -base64 32
 
 Alternatively, dae provides a built-in generator (`dae gen-token`) that produces a token in the same format.
 
-## Token Validity
+## Legacy Token Validity
 
 A token is considered **valid** only if it matches the format produced by `openssl rand -base64 16` or `openssl rand -base64 32`, i.e. the standard base64 encoding of exactly 16 or 32 random bytes:
 
@@ -88,9 +116,12 @@ A token is considered **valid** only if it matches the format produced by `opens
 | `openssl rand -base64 16` | 24 chars (ends with `==`) | `q/RWNF0nPm2v3eD5LxD5VA==` |
 | `openssl rand -base64 32` | 44 chars (ends with `=`) | `0w5Vl0xR/mQY7r2tJzH3eFkC9qDxS+uN1vLbGPaQcXo=` |
 
-Any other value is rejected.
+The old draft rejected other values. The native API treats the secret as an
+opaque value; implementations may enforce a minimum length, but must not
+require one particular base64 length or confuse token generation with API
+compatibility.
 
-## Interface Listening Rule
+## Legacy Interface Listening Rule
 
 The API only listens on the loopback interface (`127.0.0.1` / `::1`) unless all of the following hold:
 

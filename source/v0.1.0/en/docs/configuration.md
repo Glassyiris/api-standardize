@@ -4,7 +4,14 @@ title: Configuration
 
 # GET /api/config
 
-Returns the current active configuration (read-only).
+> Draft endpoint. Use `GET /api/config`.
+> The native response is engine-neutral, generation-aware, and sanitized. It
+> does not expose Go runtime fields or credentials.
+> Native partial updates use `PATCH /api/config` with JSON Patch and require
+> the resource `ETag` in `If-Match`.
+
+Returns the current active configuration (read-only) for an adapter that keeps
+this legacy path.
 
 ## Request
 

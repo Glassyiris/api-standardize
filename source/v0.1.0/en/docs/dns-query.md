@@ -4,7 +4,11 @@ title: DNS Query
 
 # GET /api/dns/query
 
-Performs a live DNS query through the dae DNS module for debugging. The query is resolved using the configured `dns.upstream` servers and evaluated against the `dns.routing` rules, exactly like a real DNS request handled by dae.
+> Draft endpoint. Use `GET /api/dns/query`.
+> A response must identify the selected upstream and route source. It must not
+> claim proxy usage when DNS routing selected direct.
+
+Performs a live DNS query through the configured DNS module for debugging.
 
 ## Request
 
@@ -18,8 +22,9 @@ Host: localhost:9527
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | domain | string | - | Domain name to query (required) |
-| type | string | A | Record type: `A`, `AAAA`, `CNAME`, `MX`, `TXT`, `NS`, `SOA`, `PTR`. May be specified multiple times (e.g. `&type=A&type=AAAA`) to query several record types in a single request |
+| type | string | A | IANA record type mnemonic such as `A`, `AAAA`, `HTTPS`, `SVCB`, `SRV`, `CNAME`, `MX`, `TXT`, `NS`, `SOA`, or `PTR`; numeric types are allowed when unknown qtypes are advertised. May be specified multiple times (e.g. `&type=A&type=AAAA`) |
 | upstream | string | - | Force a specific upstream defined in `dns.upstream` (e.g. `alidns`). If omitted, the upstream is chosen by `dns.routing` |
+| cache_mode | string | normal | `normal` reads and writes the runtime cache; `bypass` reads from upstream and neither reads nor writes the cache |
 
 ## Response
 
@@ -32,7 +37,28 @@ Host: localhost:9527
     "A",
     "AAAA"
   ],
+  "cache_mode": "normal",
   "cached": false,
+  "cache_hits": [
+    {
+      "type": "A",
+      "hit": false
+    },
+    {
+      "type": "AAAA",
+      "hit": false
+    }
+  ],
+  "cache_entry_ids": [
+    {
+      "type": "A",
+      "entry_id": "dns-entry-01HZX4K8W5"
+    },
+    {
+      "type": "AAAA",
+      "entry_id": "dns-entry-01HZX4K8W6"
+    }
+  ],
   "upstream": "alidns",
   "status": "NOERROR",
   "elapsed_ms": 12,
@@ -72,7 +98,10 @@ Host: localhost:9527
 |-------|------|-------------|
 | domain | string | Query domain name |
 | types | array | Requested record types |
-| cached | bool | Whether the answer was served from the DNS cache |
+| cache_mode | string | Cache behavior used for this query |
+| cached | bool | `true` only when every requested type was served from the DNS cache |
+| cache_hits | array | Per-type cache-hit status for multi-type queries |
+| cache_entry_ids | array | Cache entry IDs by requested type; empty for `bypass` or an uncacheable result |
 | upstream | string | Upstream that served the query (after routing) |
 | status | string | DNS response code: `NOERROR`, `NXDOMAIN`, `SERVFAIL`, `FORMERR`, `REFUSED`, etc. |
 | elapsed_ms | int | Query round-trip time (ms) |
