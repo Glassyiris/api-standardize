@@ -69,7 +69,8 @@ Native API status: **draft**
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api` | Native API discovery, identity, and engine version |
+| GET | `/api` | Native API discovery |
+| GET | `/api/version` | Native engine version and API identity |
 | GET | `/api/capabilities` | Feature and visibility negotiation |
 | GET | `/api/runtime` | Runtime, active generation, eBPF summary, and visible counters |
 | GET | `/api/datapath` | Detailed eBPF/datapath state and visibility |

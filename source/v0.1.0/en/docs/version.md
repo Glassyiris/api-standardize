@@ -2,11 +2,11 @@
 title: Version
 ---
 
-# GET /api
+# GET /api/version
 
-> Draft endpoint. This is the canonical native API identity and engine version
-> resource. Use `GET /api/capabilities` for feature negotiation and
-> `GET /api/runtime` for live process state.
+> Draft endpoint. This is the canonical native API version resource. Use
+> `GET /api` only for general API discovery, `GET /api/capabilities` for
+> feature negotiation, and `GET /api/runtime` for live process state.
 
 Returns the native API identity and the version of the running engine. The
 response is independent of the engine implementation language.
@@ -14,7 +14,7 @@ response is independent of the engine implementation language.
 ## Request
 
 ```http
-GET /api HTTP/1.1
+GET /api/version HTTP/1.1
 Host: localhost:9527
 ```
 
@@ -56,5 +56,5 @@ and its dashboard compatibility flags on that separate endpoint.
 ## Example
 
 ```bash
-curl http://localhost:9527/api
+curl http://localhost:9527/api/version
 ```
