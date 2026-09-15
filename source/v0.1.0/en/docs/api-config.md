@@ -44,10 +44,19 @@ needs an adapter implementation before this block becomes active.
   in URLs, responses, or logs.
 - Browser access is disabled unless the exact request origin is listed in
   `allow_origins`; wildcard origins are not valid with bearer credentials.
+- Non-loopback bearer transport MUST use TLS at the listener or a trusted
+  local reverse proxy; a secret sent over untrusted cleartext is not secure.
+- Reject unapproved browser Origins on all native requests, including
+  mutation POSTs with simple content types; require the documented JSON
+  content types. Check Host against configured listener/proxy hostnames to
+  prevent DNS rebinding of an unauthenticated loopback listener.
+- On a secretless loopback listener, reject browser requests marked
+  `Sec-Fetch-Site: cross-site`, even without Origin. Cross-site GET navigation
+  must not trigger a control action such as a live DNS query.
 
 The native and Clash-compatible surfaces may share one socket, but their route,
 authentication, and CORS middleware remain independent. They may also use
-separate listeners without changing native `/api/*` paths.
+separate listeners without changing native `/api/v1/*` paths.
 
 ## Permissions
 
@@ -55,8 +64,8 @@ The native API defines two permissions:
 
 | Permission | Access |
 |------------|--------|
-| `observe` | Runtime, memory, datapath, nodes, groups, connections, DNS cache, and operation results owned by the caller. |
-| `control` | Probes, live DNS queries, group mutations, DNS cache mutations, reload, suspend, and resume. Includes `observe`. |
+| `observe` | Runtime, memory, datapath, nodes, groups, connections, recorded flows, permitted events, DNS cache, and operation results owned by the caller. |
+| `control` | Probes, routing simulations, live DNS queries, group mutations, DNS cache mutations, reload, suspend, and resume. Includes `observe`. |
 
 The proposed single `secret` grants `control`. Implementations may support
 additional observe-only credentials, but must preserve these permission names.
@@ -68,3 +77,9 @@ the caller has reached the listener.
 Under the current loopback-compatible default, omitting `secret` grants local
 callers both permissions. Capability flags describe engine support, not caller
 authorization.
+
+`detail=summary` only reduces response size. It does not redact data for a
+less-privileged user. Fine-grained privacy filters must apply consistently to
+snapshots, recorded steps, errors and replayed events, and mark a trace
+partial when they hide required evidence. Do not grant ordinary `observe`
+access to raw configuration; credentials can be embedded in it.

@@ -2,7 +2,7 @@
 title: Suspend
 ---
 
-# POST /api/operations/suspend
+# POST /api/v1/operations/suspend
 
 > Draft endpoint. Suspension is capability-gated and asynchronous. It is not
 > a universal dae/honk operation.
@@ -11,52 +11,19 @@ Starts suspension for an adapter that implements a no-load lifecycle.
 
 ## Request
 
-```http
-POST /api/operations/suspend HTTP/1.1
-Host: localhost:9527
-Content-Type: application/json
-
-{}
-```
+{% api_example startSuspend request empty http %}
 
 ## Response
 
 ### Accepted (202 Accepted)
 
-```http
-HTTP/1.1 202 Accepted
-Location: /api/operations/op-01HZX4K8W8
-Retry-After: 1
-Content-Type: application/json
-```
+{% api_example startSuspend 202 queued http %}
 
-```json
-{
-  "operation_id": "op-01HZX4K8W8",
-  "kind": "suspend",
-  "status": "queued",
-  "href": "/api/operations/op-01HZX4K8W8"
-}
-```
-
-Poll [`GET /api/operations/{id}`](operations.html) for completion.
+Poll [`GET /api/v1/operations/{id}`](operations.html) for completion.
 
 ### Completed result
 
-```json
-{
-  "operation_id": "op-01HZX4K8W8",
-  "kind": "suspend",
-  "status": "succeeded",
-  "created_at": "2026-08-15T10:00:59Z",
-  "started_at": "2026-08-15T10:01:00Z",
-  "finished_at": "2026-08-15T10:01:00Z",
-  "result": {
-    "runtime_state": "suspended"
-  },
-  "error": null
-}
-```
+{% api_example getOperation 200 suspend_complete %}
 
 ### Fields
 
@@ -70,13 +37,12 @@ Poll [`GET /api/operations/{id}`](operations.html) for completion.
 
 If the adapter advertises `resources.resume.available`, resume uses:
 
-```http
-POST /api/operations/resume HTTP/1.1
-Host: localhost:9527
-Content-Type: application/json
+{% api_example startResume request empty http %}
 
-{}
-```
+Resume returns the same operation envelope with `kind: resume`. On success,
+`result.runtime_state` is `running`, or null when the adapter cannot observe
+the resulting state, consistent with suspension's nullable state field.
+Acceptance alone must never be reported as successful resumption.
 
 An unavailable suspend or resume operation returns `404 capability_not_supported`.
 A lifecycle state that prevents the transition returns `409 state_conflict`.
@@ -84,7 +50,7 @@ A lifecycle state that prevents the transition returns `409 state_conflict`.
 ## Example
 
 ```bash
-curl -X POST http://localhost:9527/api/operations/suspend \
+curl -X POST http://localhost:9527/api/v1/operations/suspend \
   -H 'Content-Type: application/json' \
   -d '{}'
 ```

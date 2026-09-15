@@ -18,18 +18,28 @@ client to:
 - Read sanitized runtime, routing, node, group, and DNS state
 - Start typed probes without conflating TCP reachability with proxy latency
 - Track asynchronous reload/suspend operations
-- Observe only the connections and counters the running datapath can actually see
+- Explain each recorded flow from rule inputs through dialing/DNS/rerouting,
+  actual outbound attempts, and connection outcome
+- Simulate hypothetical routing without confusing predictions with history
+- Follow bounded, resumable server-sent events
 
-All requests and responses use **JSON** (`Content-Type: application/json`). No
-other formats are supported. Native responses send `Cache-Control: no-store`
-and `X-Content-Type-Options: nosniff`; bearer credentials are never accepted in
-a URL query parameter.
+Resource bodies use **JSON**; group patches use JSON Patch and the event
+feed uses `text/event-stream` with JSON data. Native responses send
+`Cache-Control: no-store` and `X-Content-Type-Options: nosniff`; bearer
+credentials are never accepted in a URL query parameter.
+
+Unsigned 64-bit quantities are canonical decimal JSON strings from `"0"` through
+`"18446744073709551615"`: no leading zeros (except `"0"`), sign, decimal point,
+or exponent. Clients must preserve them as strings or parse them as arbitrary-
+precision integers (`BigInt`), never `Number`; bounded counts and limits, flow
+revisions, and step `seq` values remain JSON numbers. Configuration and selection
+revision identifiers remain opaque strings and must not be parsed.
 
 ## Quick Start
 
 ### Configuration
 
-The draft native listener uses `/api`. honk currently
+The draft native listener uses `/api/v1`, with unversioned `/api` discovery. honk currently
 configures its Clash-compatible listener with `experimental.clash_api`; the
 referenced dae/kdae branch currently has no general REST listener and exposes
 reload/suspend through CLI and signals. See [API Configuration](docs/api-config.html)
@@ -49,7 +59,7 @@ for the shared listener, authentication, and CORS contract.
 ### Base URL
 
 ```
-http://localhost:9527/api     # native API draft
+http://localhost:9527/api/v1  # native API draft, wire major 1
 http://localhost:9090         # honk Clash compatibility API
 ```
 
@@ -63,32 +73,37 @@ Authorization: Bearer <your-token>
 
 ## API Version
 
-Native API status: **draft**
+Native API status: **draft**. `/api/v1` identifies the wire major, not a claim
+that honk 1.0 or this API is released. The `v0.1.0` site directory is the
+document revision. Breaking wire changes require a new major path; additive
+features are negotiated through capabilities, never inferred from engine
+versions. Unversioned resource routes are not aliases.
+
+The [OpenAPI contract](/openapi.yaml) is the generated public bundle. Its
+authoring sources live under `api/`, grouped by resource, with native named
+examples owned by their operations. Edit those sources and run `npm run build`;
+do not edit the bundle or copy example payloads into this prose.
+
+`npm run check:contract` bundles and lints the specification, validates its
+structured examples, headers and flow invariants, and runs independent
+regressions. Markdown references stable example names through project-owned
+Hexo tags; it is rendered from the contract, not parsed back into one.
+The human explanations of permissions, visibility and lifecycle remain
+hand-authored. Generated clients and an embedded UI remain outside this spec.
+
+Builds clear Hexo's rendered-page cache so changed contract examples cannot
+leave stale documentation behind. Restart `npm run server` after changing
+`api/` sources; ordinary prose edits still use Hexo's normal development loop.
+
+See [honk implementation evidence](docs/honk-mapping.html) for the current
+instrumentation gaps and the disposition of PR #1's comments. Native JSON
+and the existing Clash API stay side by side. A separate panel or LuCI
+client can use the native API; whether its assets ship embedded or as an
+external UI does not change this contract.
 
 ## Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api` | Native API discovery |
-| GET | `/api/version` | Native engine version and API identity |
-| GET | `/api/capabilities` | Feature and visibility negotiation |
-| GET | `/api/runtime` | Runtime, active generation, eBPF summary, and visible counters |
-| GET | `/api/runtime/memory` | Lightweight process, cgroup, and eBPF memory snapshot |
-| GET | `/api/datapath` | Detailed eBPF/datapath state and visibility |
-| GET | `/api/nodes` | Nodes and typed health samples |
-| GET | `/api/groups` | List group summaries |
-| GET | `/api/groups/{groupId}` | Current group configuration, members, selection, and health |
-| PATCH | `/api/groups/{groupId}` | JSON Patch group configuration |
-| PUT | `/api/groups/{groupId}/selection` | Select a runtime member when supported |
-| POST | `/api/probes` | Start a typed node or group probe job |
-| GET | `/api/connections` | Scope-labelled connection snapshot |
-| GET | `/api/dns/query` | Routed DNS query |
-| GET | `/api/dns/cache` | DNS cache view when supported |
-| DELETE | `/api/dns/cache/{entry_id}` | Delete one DNS cache entry |
-| DELETE | `/api/dns/cache?name=...` | Delete matching entries for one exact name |
-| POST | `/api/dns/cache/flush` | Flush the complete runtime DNS cache |
-| POST | `/api/operations/reload` | Asynchronous reload operation |
-| POST | `/api/operations/suspend` | Capability-gated asynchronous suspend |
-| POST | `/api/operations/resume` | Capability-gated asynchronous resume |
-| GET | `/api/operations/{id}` | Operation status |
-| GET | `/version`, `/configs`, `/proxies`, ... | honk Clash compatibility surface |
+{% api_endpoints %}
+
+The separate honk Clash-compatible surface remains at `/version`, `/configs`,
+`/proxies`, and its other compatibility routes; it is not part of this native table.

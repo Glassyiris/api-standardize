@@ -1,0 +1,278 @@
+securitySchemes:
+  bearerAuth:
+    type: http
+    scheme: bearer
+    bearerFormat: opaque
+    description: |
+      Bearer authentication is mandatory whenever a deployment secret is set.
+      The anonymous security alternative is permitted only on an explicitly
+      secretless loopback listener, never as a fallback for invalid credentials.
+      Native permissions are expressed by x-permission; see API Configuration.
+headers:
+  NoStore:
+    description: Native responses are not cacheable.
+    required: true
+    schema:
+      type: string
+      const: no-store
+  NoSniff:
+    description: Prevent MIME-type sniffing.
+    required: true
+    schema:
+      type: string
+      const: nosniff
+  ETag:
+    description: Quoted group configuration revision.
+    required: true
+    schema:
+      type: string
+      minLength: 1
+parameters:
+  Detail:
+    name: detail
+    in: query
+    schema:
+      type: string
+      enum: [ summary, full ]
+      default: summary
+    example: full
+  Limit1000:
+    name: limit
+    in: query
+    schema:
+      type: integer
+      minimum: 1
+      maximum: 1000
+      default: 100
+    example: 100
+  Cursor:
+    name: cursor
+    in: query
+    schema:
+      type: string
+      minLength: 1
+  GroupId:
+    name: groupId
+    in: path
+    required: true
+    schema:
+      type: string
+      minLength: 1
+    example: group-proxy
+  FlowId:
+    name: flow_id
+    in: path
+    required: true
+    schema:
+      type: string
+      minLength: 1
+    example: flow-23
+  DnsEntryId:
+    name: entry_id
+    in: path
+    required: true
+    schema:
+      type: string
+      minLength: 1
+    example: dns-entry-01HZX4K8W5
+  OperationId:
+    name: id
+    in: path
+    required: true
+    schema:
+      type: string
+      minLength: 1
+    example: op-01HZX4K8W7
+  IfMatch:
+    name: If-Match
+    in: header
+    required: true
+    schema:
+      type: string
+      minLength: 1
+    example: '"17"'
+  IdempotencyKey:
+    name: Idempotency-Key
+    in: header
+    required: false
+    schema:
+      type: string
+      minLength: 1
+  LastEventId:
+    name: Last-Event-ID
+    in: header
+    required: false
+    schema:
+      type: string
+      minLength: 1
+    example: instance-7:123
+responses:
+  OperationAccepted:
+    description: Operation accepted
+    headers:
+      Location:
+        description: Operation status URL; equal to body href.
+        required: true
+        schema:
+          type: string
+          pattern: ^/api/v1/operations/[^/]+$
+      Retry-After:
+        description: Positive polling floor in seconds.
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      Cache-Control:
+        $ref: ./openapi.yaml#/components/headers/NoStore
+      X-Content-Type-Options:
+        $ref: ./openapi.yaml#/components/headers/NoSniff
+    content:
+      application/json:
+        schema:
+          $ref: ./openapi.yaml#/components/schemas/OperationAccepted
+  BadRequest:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: Malformed parameters or request shape
+  Unauthorized:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: Credentials are missing or invalid
+  Forbidden:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: Authenticated caller lacks the required permission
+  NotFound:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: Resource/action unavailable, absent, expired, or concealed
+  Conflict:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: State, idempotency, cursor, or coherent-snapshot conflict
+  Gone:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: Flow or paginated snapshot retention expired
+  PreconditionFailed:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: If-Match does not equal the current configuration revision
+  TooLarge:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: Request size or advertised fan-out limit exceeded
+  UnsupportedMediaType:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: Unsupported request Content-Type
+  Unprocessable:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: Syntactically valid but unsupported field, value, or transition
+  PreconditionRequired:
+    $ref: ./openapi.yaml#/components/responses/ErrorResponseCommon
+    description: Required If-Match is absent
+  RateLimited:
+    description: Advertised request or operation rate exceeded
+    headers:
+      Retry-After:
+        description: Retry delay in seconds.
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      Cache-Control:
+        $ref: ./openapi.yaml#/components/headers/NoStore
+      X-Content-Type-Options:
+        $ref: ./openapi.yaml#/components/headers/NoSniff
+    content:
+      application/json:
+        schema:
+          $ref: ./openapi.yaml#/components/schemas/ErrorResponse
+  Unavailable:
+    description: Bounded queue or required runtime component unavailable
+    headers:
+      Retry-After:
+        description: Retry delay in seconds when retryable.
+        schema:
+          type: integer
+          minimum: 1
+      Cache-Control:
+        $ref: ./openapi.yaml#/components/headers/NoStore
+      X-Content-Type-Options:
+        $ref: ./openapi.yaml#/components/headers/NoSniff
+    content:
+      application/json:
+        schema:
+          $ref: ./openapi.yaml#/components/schemas/ErrorResponse
+  ErrorResponseCommon:
+    description: Native API error
+    headers:
+      Cache-Control:
+        $ref: ./openapi.yaml#/components/headers/NoStore
+      X-Content-Type-Options:
+        $ref: ./openapi.yaml#/components/headers/NoSniff
+    content:
+      application/json:
+        schema:
+          $ref: ./openapi.yaml#/components/schemas/ErrorResponse
+schemas:
+  EmptyObject:
+    type: object
+    additionalProperties: false
+    maxProperties: 0
+  SafeUInt:
+    type: integer
+    minimum: 0
+    maximum: 9007199254740991
+  NullableSafeUInt:
+    type: [ integer, "null" ]
+    minimum: 0
+    maximum: 9007199254740991
+  UInt64:
+    type: string
+    maxLength: 20
+    not:
+      pattern: "[^0-9]"
+    pattern: ^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-4]|18446744073709551615)$
+    description: Canonical unsigned 64-bit decimal string, 0 through 18446744073709551615. Never a JSON number.
+  NullableUInt64:
+    oneOf:
+      - type: "null"
+      - $ref: ./openapi.yaml#/components/schemas/UInt64
+  Timestamp:
+    type: string
+    format: date-time
+  NullableTimestamp:
+    type: [ string, "null" ]
+    format: date-time
+  SafeError:
+    type: object
+    required: [ code, message ]
+    properties:
+      code:
+        type: string
+        minLength: 1
+      message:
+        type: string
+        minLength: 1
+      details:
+        type: [ object, "null" ]
+    description: Safe structured error; never raw engine output.
+  ErrorResponse:
+    type: object
+    required: [ error, request_id ]
+    properties:
+      error:
+        $ref: ./openapi.yaml#/components/schemas/SafeError
+      request_id:
+        type: [ string, "null" ]
+  Visibility:
+    type: string
+    enum: [ full, partial, none ]
+  ObservedBy:
+    type: string
+    enum: [ userspace, ebpf, mixed ]
+  Transport:
+    type: string
+    enum: [ tcp, udp ]
+  IpVersion:
+    type: string
+    enum: [ ipv4, ipv6 ]
+  IpAddress:
+    oneOf:
+      - type: string
+        format: ipv4
+      - type: string
+        format: ipv6

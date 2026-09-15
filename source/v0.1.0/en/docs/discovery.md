@@ -6,31 +6,17 @@ title: Discovery
 
 > Draft endpoint. This resource identifies the native API surface and points to
 > the bootstrap resources. Engine version information remains exclusively at
-> `GET /api/version`.
+> `GET /api/v1/version`.
 
 ## Request
 
-```http
-GET /api HTTP/1.1
-Host: localhost:9527
-```
+{% api_request getDiscovery %}
 
 ## Response
 
 ### Success (200 OK)
 
-```json
-{
-  "name": "dae/honk-native",
-  "status": "draft",
-  "links": {
-    "version": "/api/version",
-    "capabilities": "/api/capabilities",
-    "runtime": "/api/runtime",
-    "operations": "/api/operations/{id}"
-  }
-}
-```
+{% api_example getDiscovery 200 draft %}
 
 ### Fields
 
@@ -38,6 +24,8 @@ Host: localhost:9527
 |-------|------|-------------|
 | name | string | Stable name of the native API surface. |
 | status | string | API design status; currently `draft`. |
+| api_major | integer | Selected wire major, currently 1; independent of document/engine version. |
+| base_path | string | Versioned native resource prefix. |
 | links | object | Stable bootstrap links. This is not a capability declaration. |
 
 Clients use `links.version` for engine identity and `links.capabilities` to

@@ -28,6 +28,14 @@ menu:
     file: docs/groups
   - title: Connections
     file: docs/connections
+  - title: Recorded Flows
+    file: docs/flows
+  - title: Routing Simulation
+    file: docs/routing-trace
+  - title: Events
+    file: docs/events
+  - title: honk Implementation Evidence
+    file: docs/honk-mapping
   - title: DNS Query
     file: docs/dns-query
   - title: DNS Cache
@@ -70,7 +78,7 @@ home:
     - versions
   hero_badge: dae/honk API
   hero_title: dae/honk Native API
-  hero_subtitle: Capability-driven API for Linux eBPF proxy engines
+  hero_subtitle: Per-flow decisions, runtime evidence, and capability-driven control
   hero_cta: Get Started
   versions_title: Versions
   versions_subtitle: Documentation versions

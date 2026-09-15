@@ -2,181 +2,81 @@
 title: Probes
 ---
 
-# POST /api/probes
+# POST /api/v1/probes
 
-> Draft endpoint. Probes are explicit about their target, kind, transport,
-> address family, and warmth. A group target is the native group latency-test
-> operation.
-
-Starts a bounded asynchronous probe job for a node or group.
+> Proposed bounded asynchronous probe resource. `/nodes` reads existing
+> observations; it never probes. There is no separate check-nodes or
+> node-latency action. A probe is not evidence that a client flow succeeded.
 
 ## Request
 
-```http
-POST /api/probes HTTP/1.1
-Host: localhost:9527
-Content-Type: application/json
+{% api_example createProbe request dns_udp http %}
 
-{
-  "target": {
-    "type": "group",
-    "group_id": "group-proxy"
-  },
-  "kind": "latency",
-  "transport": ["tcp", "udp"],
-  "ip_version": "any",
-  "members": "direct",
-  "warmth": "cold"
-}
-```
+| Field | Required | Contract |
+|-------|----------|----------|
+| target | yes | Exactly `{type: node, node_id}` or `{type: group, group_id}`. |
+| kind | yes | `tcp_connect`, `http`, or `dns`; supported kinds are advertised. |
+| purpose | yes | `data` or `dns`; the health domain being tested, not inferred from UDP alone. |
+| transport | yes | Nonempty unique array of `tcp`/`udp`, restricted by kind. |
+| ip_version | yes | `ipv4`, `ipv6`, or `any`. `any` expands to advertised families. |
+| members | no | Group-only: `direct` (default), `leaves`, or nonempty unique direct-member IDs. |
+| warmth | yes | `cold` or `warm`. An unimplementable reuse constraint returns 422, not mislabeled results. |
 
-### Request fields
+`tcp_connect` tests TCP reachability of the configured node server, not a
+proxy handshake or application latency; it requires `transport: [tcp]` and
+`purpose: data`. `http` tests the configured HTTP(S) check through the target
+outbound, requires TCP/data, and measures through the response headers.
+`dns` tests the configured DNS check through the target outbound and requires
+`purpose: dns`; TCP and/or UDP describe that DNS query's transport. The IP
+family refers to the check destination (node server for `tcp_connect`), not
+necessarily the tunnel's network. There is no arbitrary UDP echo or generic
+`latency` kind whose success criterion is unspecified.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| target.type | string | yes | `node` or `group`. |
-| target.node_id | string | conditional | Required when `target.type` is `node`. |
-| target.group_id | string | conditional | Required when `target.type` is `group`. |
-| kind | string | yes | Probe kind. The group latency operation uses `latency`. |
-| transport | string array | yes | One or more supported transports, such as `tcp` or `udp`. |
-| ip_version | string | yes | `ipv4`, `ipv6`, or `any`. |
-| members | string or array | no | Group targets only: `direct`, `leaves`, or explicit member IDs. Defaults to `direct`. |
-| warmth | string | yes | `cold` or `warm`, describing whether an existing connection may be reused. |
+A group `direct` target preserves direct members and policy-authorized nested
+resolution; no eligible leaf produces `unavailable`, never an arbitrary
+sibling. `leaves` is an explicit diagnostic expansion. Deduplicate identical
+leaf/kind/transport/purpose/family/warmth executions while retaining every
+member-to-leaf association in the results. `cold` excludes reusable check
+connections; `warm` permits but does not require reuse. Result `warmth` states
+what actually happened (`cold`, `warm`, or `unknown`). Do not claim a cold
+physical tunnel merely because a new logical stream was opened.
 
-For a group target, `direct` preserves direct node and nested group members.
-When a nested group is tested, the result identifies both the requested member
-and the resolved leaf node. `leaves` expands nested groups for diagnostics and
-deduplicates the same leaf node.
+The request cannot specify arbitrary URLs, names, IPs or ports. Use
+administrator-configured check destinations, with the SSRF policy in
+[Groups](groups.html): validate and pin resolved addresses, revalidate every
+redirect, bound redirects/body/time, and do not let an API caller rewrite the
+administrator allowlist. Invalid kind/transport/purpose combinations and
+unsupported target capabilities return `422 unsupported_value` before work.
 
-`ip_version: any` expands to each IP family advertised by
-`GET /api/capabilities`, producing one result per tested family. The request
-cannot supply an arbitrary URL: the adapter uses the target's configured
-health-check endpoint. The URL, destination, port, address pinning, redirect,
-response-body, and timeout rules are the same SSRF policy defined by the group
-resource.
+Probes may update native health and automatic selections. The adapter must
+preserve native side-effect semantics and report `health_updated` per result
+and `selection_changed` per transport. A reachability measurement MUST NOT be
+injected into an application-latency collection as an equivalent sample.
 
-The probe uses native policy semantics and may change an automatic selection.
-The completed result reports selection side effects independently for TCP and
-UDP.
+## Accepted (202)
 
-## Response
+{% api_example createProbe 202 queued http %}
 
-### Accepted (202 Accepted)
+Poll [Operations](operations.html) or follow `operation.updated` events.
 
-```http
-HTTP/1.1 202 Accepted
-Location: /api/operations/op-01HZX4K8W9
-Retry-After: 1
-Content-Type: application/json
-```
+## Completed result
 
-```json
-{
-  "operation_id": "op-01HZX4K8W9",
-  "kind": "probe",
-  "status": "queued",
-  "href": "/api/operations/op-01HZX4K8W9"
-}
-```
+{% api_example getOperation 200 probe_complete %}
 
-Poll [`GET /api/operations/{id}`](operations.html) for completion.
+Each result identifies the requested member, actual leaf (nullable), probe
+kind and dimensions, observed state (`healthy`, `unavailable`, `unknown`),
+nullable measured latency and safe error. `succeeded` means the job completed,
+not that every target was healthy. The example illustrates two result rows;
+a completed job MUST include all requested dimension/member combinations.
+Unstarted/cancelled work is `unknown` with a safe cancellation/deadline code
+and `health_updated: false`, not an unhealthy node.
 
-### Completed result
+## Limits
 
-```json
-{
-  "operation_id": "op-01HZX4K8W9",
-  "kind": "probe",
-  "status": "succeeded",
-  "created_at": "2026-08-15T09:59:59Z",
-  "started_at": "2026-08-15T10:00:00Z",
-  "finished_at": "2026-08-15T10:00:01Z",
-  "result": {
-    "target": {
-      "type": "group",
-      "group_id": "group-proxy"
-    },
-    "selection_changed": {
-      "tcp": true,
-      "udp": false
-    },
-    "selection_before": {
-      "tcp": "node-us-01",
-      "udp": null
-    },
-    "selection_after": {
-      "tcp": "node-hk-01",
-      "udp": null
-    },
-    "results": [
-      {
-        "member_id": "node-hk-01",
-        "resolved_leaf_node_id": "node-hk-01",
-        "transport": "tcp",
-        "ip_version": "ipv4",
-        "state": "healthy",
-        "latency_ms": 45,
-        "error": null,
-        "observed_at": "2026-08-15T10:00:00Z"
-      },
-      {
-        "member_id": "group-jp",
-        "resolved_leaf_node_id": "node-jp-01",
-        "transport": "udp",
-        "ip_version": "ipv4",
-        "state": "unavailable",
-        "latency_ms": null,
-        "error": "udp_probe_timeout",
-        "observed_at": "2026-08-15T10:00:00Z"
-      }
-    ]
-  },
-  "error": null
-}
-```
-
-### Limits
-
-The adapter enforces the limits advertised under `resources.probes.limits`:
-
-- fan-out above `max_members_per_job` returns `413 request_too_large`;
-- projected results above `max_results_per_job` return `413` before dispatch;
-- per-target concurrency and principal/global rates return `429 rate_limited`
-  with `Retry-After`;
-- a full bounded queue returns `503 temporarily_unavailable` with
-  `Retry-After`; and
-- the complete job stops at `job_timeout_ms`, with unfinished samples reported
-  as `unavailable` and `probe_deadline_exceeded`.
-
-### Result fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| result.target | object | Node or group that was tested. |
-| result.selection_changed | object | Whether TCP or UDP selection changed. |
-| result.selection_before | object | TCP and UDP member IDs before the probe, or `null`. |
-| result.selection_after | object | TCP and UDP member IDs after the probe, or `null`. |
-| result.results | array | One typed result per member, transport, and tested IP family. |
-| result.results[].member_id | string | Direct group member or node targeted. |
-| result.results[].resolved_leaf_node_id | string or null | Actual leaf node tested. |
-| result.results[].transport | string | `tcp` or `udp`. |
-| result.results[].ip_version | string | `ipv4` or `ipv6`. |
-| result.results[].state | string | `healthy`, `unavailable`, or `unknown`. |
-| result.results[].latency_ms | number or null | Measured latency; failure is `null`, never `0`. |
-| result.results[].observed_at | string | Observation timestamp (RFC3339). |
-| result.results[].error | string or null | Safe machine-readable failure code. |
-
-## Example
-
-```bash
-curl -X POST http://localhost:9527/api/probes \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "target": {"type": "group", "group_id": "group-proxy"},
-    "kind": "latency",
-    "transport": ["tcp", "udp"],
-    "ip_version": "any",
-    "members": "direct",
-    "warmth": "cold"
-  }'
-```
+`resources.probes.limits` bounds fan-out, projected results, active/queued jobs,
+per-target concurrency, deadline, and principal/global request rates. Reject
+oversized fan-out/results with `413` before dispatch; use `429` for concurrency
+or rate excess and `503` for a full queue, both with `Retry-After`. Enforce one
+job deadline including preparation; cancel and drain started work at expiry.
+Already completed real errors keep their native health effects; cancellation
+and never-started candidates are health-neutral.

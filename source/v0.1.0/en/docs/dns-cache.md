@@ -4,10 +4,10 @@ title: DNS Cache
 
 # DNS Cache
 
-> Draft endpoints: `GET /api/dns/cache`, `DELETE /api/dns/cache/{entry_id}`,
-> filtered `DELETE /api/dns/cache`, and `POST /api/dns/cache/flush`.
+> Draft endpoints: `GET /api/v1/dns/cache`, `DELETE /api/v1/dns/cache/{entry_id}`,
+> filtered `DELETE /api/v1/dns/cache`, and `POST /api/v1/dns/cache/flush`.
 > Cache introspection and mutations are independently declared under
-> `resources.dns_cache` by `GET /api/capabilities`.
+> `resources.dns_cache` by `GET /api/v1/capabilities`.
 
 These endpoints operate on the engine's runtime DNS cache only. They do not
 flush the kernel conntrack table, the host stub resolver, an upstream DNS
@@ -19,17 +19,13 @@ An implementation that does not expose a capability must return `404` with
 
 ## List entries
 
-### `GET /api/dns/cache`
+### `GET /api/v1/dns/cache`
 
 The response is a paginated snapshot. The cache can change while the client
 walks the pages, so `cursor` is opaque and must not be manufactured by a
 client.
 
-```http
-GET /api/dns/cache?detail=full HTTP/1.1
-Host: localhost:9527
-Accept: application/json
-```
+{% api_request listDnsCache %}
 
 ## Query Parameters
 
@@ -47,48 +43,7 @@ Accept: application/json
 
 ### Success (200 OK)
 
-```json
-{
-  "observed_at": "2026-08-15T12:00:00Z",
-  "coverage": {
-    "positive": true,
-    "negative": true,
-    "persistent": false
-  },
-  "entries": [
-    {
-      "entry_id": "dns-entry-01HZX4K8W5",
-      "domain": "example.com.",
-      "type": "A",
-      "class": "IN",
-      "status": "NOERROR",
-      "answers": [
-        {
-          "name": "example.com.",
-          "type": "A",
-          "class": "IN",
-          "data": "93.184.216.34",
-          "ttl": 3600
-        }
-      ],
-      "expires_at": "2026-08-15T13:00:00Z",
-      "stale_until": null
-    },
-    {
-      "entry_id": "dns-entry-01HZX4K8W6",
-      "domain": "missing.example.com.",
-      "type": "A",
-      "class": "IN",
-      "status": "NXDOMAIN",
-      "answers": [],
-      "expires_at": "2026-08-15T12:05:00Z",
-      "stale_until": "2026-08-15T12:06:00Z"
-    }
-  ],
-  "total": 1024,
-  "next_cursor": "eyJvZmZzZXQiOjEwMH0"
-}
-```
+{% api_example listDnsCache 200 entries %}
 
 ### Fields
 
@@ -126,72 +81,48 @@ upstream.
 
 ## Delete one entry
 
-### `DELETE /api/dns/cache/{entry_id}`
+### `DELETE /api/v1/dns/cache/{entry_id}`
 
 Deletes exactly one cache entry identified by the opaque `entry_id` returned
 by the list endpoint. The ID must be URL-encoded as a path segment.
 
-```http
-DELETE /api/dns/cache/dns-entry-01HZX4K8W5 HTTP/1.1
-Host: localhost:9527
-```
+{% api_request deleteDnsCacheEntry %}
 
 Deletion is idempotent and returns `200` whether the entry existed:
 
-```json
-{
-  "deleted": 1
-}
-```
+{% api_example deleteDnsCacheEntry 200 deleted %}
 
 A retry after the entry is gone returns `deleted: 0`.
 
 ## Delete matching entries
 
-### `DELETE /api/dns/cache`
+### `DELETE /api/v1/dns/cache`
 
 Deletes all entries matching an exact name and optional record-type filters.
 `name` is required for this endpoint; a partial `domain` filter is never
 accepted for deletion. Omitting `type` deletes every type and both positive
 and negative entries for that name.
 
-```http
-DELETE /api/dns/cache?name=example.com.&type=A&type=AAAA HTTP/1.1
-Host: localhost:9527
-```
+{% api_request deleteDnsCacheByName %}
 
 The response is successful even when no entries matched, which makes retries
 safe:
 
-```json
-{
-  "matched": 2,
-  "deleted": 2
-}
-```
+{% api_example deleteDnsCacheByName 200 deleted %}
 
 ## Flush the complete runtime cache
 
-### `POST /api/dns/cache/flush`
+### `POST /api/v1/dns/cache/flush`
 
 Flushes all runtime DNS cache entries. This is deliberately an action endpoint
-so an unfiltered `DELETE /api/dns/cache` cannot accidentally erase the entire
+so an unfiltered `DELETE /api/v1/dns/cache` cannot accidentally erase the entire
 cache. The request body is empty or `{}`.
 
-```http
-POST /api/dns/cache/flush HTTP/1.1
-Host: localhost:9527
-Content-Length: 0
-```
+{% api_request flushDnsCache %}
 
 The server returns only after the invalidation barrier has been installed:
 
-```json
-{
-  "matched": 1024,
-  "deleted": 1024
-}
-```
+{% api_example flushDnsCache 200 flushed %}
 
 Queries already in flight may still return their upstream result to their
 caller, but a result started before the barrier must not repopulate an entry
@@ -210,9 +141,9 @@ again.
 ## Example
 
 ```bash
-curl "http://localhost:9527/api/dns/cache?domain=google&limit=20&detail=full"
+curl "http://localhost:9527/api/v1/dns/cache?domain=google&limit=20&detail=full"
 curl -X DELETE \
-  "http://localhost:9527/api/dns/cache?name=example.com.&type=A"
+  "http://localhost:9527/api/v1/dns/cache?name=example.com.&type=A"
 curl -X POST \
-  "http://localhost:9527/api/dns/cache/flush"
+  "http://localhost:9527/api/v1/dns/cache/flush"
 ```

@@ -2,9 +2,9 @@
 title: DNS Query
 ---
 
-# GET /api/dns/query
+# GET /api/v1/dns/query
 
-> Draft endpoint. Use `GET /api/dns/query`.
+> Draft endpoint. Use `GET /api/v1/dns/query`.
 > Each requested record type has its own DNS status, upstream, route source,
 > cache state, and elapsed time.
 
@@ -13,10 +13,7 @@ Successful responses include `Cache-Control: no-store`.
 
 ## Request
 
-```http
-GET /api/dns/query?domain=example.com&type=A&type=AAAA&detail=full HTTP/1.1
-Host: localhost:9527
-```
+{% api_request queryDns %}
 
 ## Query Parameters
 
@@ -32,57 +29,7 @@ Host: localhost:9527
 
 ### Success (200 OK)
 
-```json
-{
-  "domain": "example.com",
-  "cache_mode": "normal",
-  "query_time": "2026-08-14T00:00:00Z",
-  "results": [
-    {
-      "type": "A",
-      "cached": false,
-      "cache_entry_id": "dns-entry-01HZX4K8W5",
-      "upstream": "alidns",
-      "route": {
-        "source": "dns.routing",
-        "rule": "domain(example.com)"
-      },
-      "status": "NOERROR",
-      "elapsed_ms": 12,
-      "question": {
-        "name": "example.com.",
-        "type": "A"
-      },
-      "answers": [
-        {
-          "name": "example.com.",
-          "type": "A",
-          "class": "IN",
-          "ttl": 600,
-          "data": "93.184.216.34"
-        }
-      ]
-    },
-    {
-      "type": "AAAA",
-      "cached": false,
-      "cache_entry_id": null,
-      "upstream": "alidns",
-      "route": {
-        "source": "dns.routing",
-        "rule": "domain(example.com)"
-      },
-      "status": "NODATA",
-      "elapsed_ms": 11,
-      "question": {
-        "name": "example.com.",
-        "type": "AAAA"
-      },
-      "answers": []
-    }
-  ]
-}
-```
+{% api_example queryDns 200 dual_stack %}
 
 ### Fields
 
@@ -102,6 +49,12 @@ Host: localhost:9527
 | results[].elapsed_ms | int | Per-type elapsed time in milliseconds. |
 | results[].question | object | DNS question. |
 | results[].answers | array, optional | DNS answer records with `detail=full`. |
+
+This is a new diagnostic query, not the DNS history of an existing flow.
+`route` describes the request-side choice only; response requeries,
+resolver-server routing, actual carriers and exact flow correlations belong
+to recorded DNS/route steps. Cache hits may not retain the origin upstream;
+null is not permission to reconstruct it from the current configuration.
 
 ### Question Object
 
@@ -135,7 +88,7 @@ unavailable DNS subsystem returns `503`.
 ## Example
 
 ```bash
-curl "http://localhost:9527/api/dns/query?domain=example.com&type=A&detail=full"
-curl "http://localhost:9527/api/dns/query?domain=example.com&type=A&type=AAAA"
-curl "http://localhost:9527/api/dns/query?domain=example.com&upstream=googledns"
+curl "http://localhost:9527/api/v1/dns/query?domain=example.com&type=A&detail=full"
+curl "http://localhost:9527/api/v1/dns/query?domain=example.com&type=A&type=AAAA"
+curl "http://localhost:9527/api/v1/dns/query?domain=example.com&upstream=googledns"
 ```

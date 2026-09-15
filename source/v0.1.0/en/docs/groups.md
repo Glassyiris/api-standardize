@@ -13,78 +13,11 @@ The group API has four separate responsibilities:
 - `GET` reads the current group state.
 - `PATCH` changes group configuration only.
 - `PUT` changes runtime selection when the policy supports manual selection.
-- `POST /api/probes` starts a typed probe job whose target can be a group.
+- `POST /api/v1/probes` starts a typed probe job whose target can be a group.
 
 ## Group resource
 
-```json
-{
-  "id": "group-proxy",
-  "name": "proxy",
-  "config_revision": "17",
-  "policy": {
-    "kind": "urltest",
-    "native": "min_moving_avg"
-  },
-  "members": [
-    {
-      "id": "node-hk-01",
-      "name": "hk-01",
-      "kind": "node"
-    },
-    {
-      "id": "group-jp",
-      "name": "jp",
-      "kind": "group"
-    }
-  ],
-  "config": {
-    "default_member_id": null,
-    "final_outbound": "direct",
-    "check_url": null,
-    "check_interval": 30,
-    "tolerance": 50,
-    "idle_timeout": null,
-    "interrupt_connections": false
-  },
-  "runtime": {
-    "selection": {
-      "tcp": {
-        "member_id": "node-hk-01",
-        "resolved_leaf_node_id": "node-hk-01",
-        "source": "health"
-      },
-      "udp": null
-    },
-    "health": [
-      {
-        "member_id": "node-hk-01",
-        "resolved_leaf_node_id": "node-hk-01",
-        "transport": "tcp",
-        "ip_version": "ipv4",
-        "state": "healthy",
-        "latency_ms": 45,
-        "observed_at": "2026-08-15T10:00:00Z"
-      }
-    ]
-  },
-  "capabilities": {
-    "can_select": false,
-    "supports_nested_groups": true,
-    "mutable_config": [
-      "policy",
-      "default_member_id",
-      "final_outbound",
-      "check_url",
-      "check_interval",
-      "tolerance",
-      "idle_timeout",
-      "interrupt_connections"
-    ],
-    "probe_transports": ["tcp", "udp"]
-  }
-}
-```
+{% api_example getGroup 200 current %}
 
 ### Resource fields
 
@@ -93,14 +26,14 @@ The group API has four separate responsibilities:
 | id | string | Opaque stable group identifier. Do not derive API identity from `name`. |
 | name | string | Engine-visible group name. |
 | config_revision | string | Revision used for optimistic configuration updates. |
-| policy.kind | string | Canonical behavior: `selector`, `urltest`, `loadbalance`, `fallback`, or `random`. |
-| policy.native | string | Engine policy, such as `fixed(0)` or `min_moving_avg`. |
+| policy.kind | string | Canonical behavior: `selector`, `urltest`, `loadbalance`, `fallback`, `random`, or `score`. |
+| policy.native | string | Effective engine policy, not a configuration alias that the runtime implements differently. |
 | members | array | Direct group members, in declaration order. |
 | members[].id | string | Opaque node or group member identifier. |
 | members[].kind | string | `node` or `group`. |
 | config | object | Configured group options. It is separate from runtime state. |
 | runtime.selection | object | Current selection by transport. A value may be `null`. |
-| runtime.health | array | Typed health observations. Unknown latency is `null`, never `0`. |
+| runtime.health | array | Member-context observations using the shared node health dimensions and metrics. Unknown latency is null; zero is never a failure sentinel. |
 | capabilities | object | Operations and fields supported by the current engine. |
 
 `resolved_leaf_node_id` is optional. It is present when a member resolves to an
@@ -114,76 +47,55 @@ The API must not assume that every group has one current node:
 - TCP and UDP selections may differ.
 - A selected group member may resolve to a different leaf node later.
 
-## GET /api/groups
+`runtime.selection` is a coarse transport summary, not an authoritative pick
+for every address family/purpose or future flow. `resolved_leaf_node_id` is an
+observation, not a promise to dial that leaf. Actual per-flow selection paths
+and failed/cancelled candidates belong to the recorded flow.
+
+Group health adds nullable `sorting_latency_ms`: the actual latency used for
+ranking **this member in this group**, including engine recovery penalty and
+group offset. It is not defined for random/selector or non-latency Score
+ranking. Nullable `ranking` describes `metric` (native metric name),
+`recovery_penalty_ms`, `group_offset_ms`, `score`, and a safe `reason`.
+Unknown components are null; do not reverse-engineer them from a group winner.
+Health fields use [Nodes](node-latency.html)'s raw metric definitions.
+
+`tolerance` is path-dependent switching hysteresis, not an additive latency.
+Nested groups, eligibility, retained choices, concurrency, and Score evidence
+also influence selection. Even a complete health snapshot cannot replay a
+past decision; it must not replace decision-time flow evidence. Score is a
+distinct policy, not URLTest with its score mislabeled as milliseconds.
+
+## GET /api/v1/groups
 
 Returns group summaries for discovery. Use the detail endpoint for members and
 health observations.
 
 ### Request
 
-```http
-GET /api/groups HTTP/1.1
-Host: localhost:9527
-```
+{% api_request listGroups %}
 
 ### Success (200 OK)
 
-```json
-[
-  {
-    "id": "group-proxy",
-    "name": "proxy",
-    "policy": {
-      "kind": "urltest",
-      "native": "min_moving_avg"
-    },
-    "member_count": 2,
-    "selection": {
-      "tcp_member_id": "node-hk-01",
-      "udp_member_id": null
-    }
-  }
-]
-```
+{% api_example listGroups 200 groups %}
 
-## GET /api/groups/{groupId}
+## GET /api/v1/groups/{groupId}
 
 Returns the complete current group resource described above.
 The response includes an `ETag` whose value matches `config_revision`.
 
 ### Request
 
-```http
-GET /api/groups/group-proxy HTTP/1.1
-Host: localhost:9527
-```
+{% api_request getGroup %}
 
-## PATCH /api/groups/{groupId}
+## PATCH /api/v1/groups/{groupId}
 
 Updates group configuration only. It does not change runtime selection.
 
 Use RFC 6902 JSON Patch and send the revision returned by `GET` in
 `If-Match`.
 
-```http
-PATCH /api/groups/group-proxy HTTP/1.1
-Host: localhost:9527
-Content-Type: application/json-patch+json
-If-Match: "17"
-
-[
-  {
-    "op": "replace",
-    "path": "/config/tolerance",
-    "value": 100
-  },
-  {
-    "op": "replace",
-    "path": "/config/interrupt_connections",
-    "value": true
-  }
-]
-```
+{% api_example patchGroup request tolerance http %}
 
 Only fields listed in `capabilities.mutable_config` may be patched. Group
 membership sources are intentionally not part of this operation:
@@ -214,31 +126,15 @@ every redirect and enforces bounded redirects, response size, and timeout.
 
 An asynchronous response uses the [shared operation contract](operations.html):
 
-```json
-{
-  "operation_id": "op-01HZX4K8WA",
-  "kind": "group_update",
-  "status": "queued",
-  "href": "/api/operations/op-01HZX4K8WA"
-}
-```
+{% api_example patchGroup 202 queued %}
 
-## PUT /api/groups/{groupId}/selection
+## PUT /api/v1/groups/{groupId}/selection
 
 Replaces the runtime selection when `capabilities.can_select` is `true`.
 Selection is separate from configuration so a runtime choice is not confused
 with the group's default member or policy.
 
-```http
-PUT /api/groups/group-proxy/selection HTTP/1.1
-Host: localhost:9527
-Content-Type: application/json
-
-{
-  "member_id": "node-hk-01",
-  "network": "both"
-}
-```
+{% api_example selectGroupMember request tcp_udp http %}
 
 `network` is `tcp`, `udp`, or `both`. The member must be a direct member of the
 group. For a nested group, `member_id` identifies the group member; the response
@@ -250,21 +146,11 @@ temporarily invalid runtime transition returns `409 state_conflict`.
 
 ### Success (200 OK)
 
-```json
-{
-  "group_id": "group-proxy",
-  "member_id": "node-hk-01",
-  "resolved_leaf_node_id": "node-hk-01",
-  "network": "both",
-  "source": "runtime",
-  "selection_revision": "8",
-  "connections_interrupted": false
-}
-```
+{% api_example selectGroupMember 200 selected %}
 
 ## Group latency tests
 
-Use the shared `POST /api/probes` endpoint with a group target. See
+Use the shared `POST /api/v1/probes` endpoint with a group target. See
 [Probes](check-nodes.html) for the request and result contract.
 
 For a group target, the probe implementation must preserve both identifiers:
@@ -272,10 +158,12 @@ For a group target, the probe implementation must preserve both identifiers:
 - `member_id` is the direct group member requested by the caller.
 - `resolved_leaf_node_id` is the actual node that was tested, when applicable.
 
-The default member scope is `direct`. For nested groups, a direct group member
-is tested through its current selected leaf, or its first resolvable leaf when
-there is no current selection. `leaves` can be requested for an expanded leaf
-diagnostic. Duplicate leaf nodes are measured once.
+The default member scope is `direct`. A nested group is tested through its
+policy-authorized selected/resolved leaf. If none is eligible, report
+unavailable; do not silently select a sibling or the first configured leaf.
+`leaves` explicitly requests expanded leaf diagnostics, not a simulation of
+the group's normal selection. Duplicate leaves are measured once per probe
+dimension; every direct-member-to-leaf association remains represented.
 
 Probe results use typed state and nullable latency. A failed result is not
 represented as `latency_ms: 0`.
@@ -283,6 +171,6 @@ represented as `latency_ms: 0`.
 ## Examples
 
 ```bash
-curl http://localhost:9527/api/groups
-curl http://localhost:9527/api/groups/group-proxy
+curl http://localhost:9527/api/v1/groups
+curl http://localhost:9527/api/v1/groups/group-proxy
 ```

@@ -2,7 +2,7 @@
 title: Reload
 ---
 
-# POST /api/operations/reload
+# POST /api/v1/operations/reload
 
 > Draft endpoint. Reload is capability-gated and asynchronous. Queueing a
 > reload is not proof that a new generation was validated and published.
@@ -11,53 +11,19 @@ Starts a configuration reload operation.
 
 ## Request
 
-```http
-POST /api/operations/reload HTTP/1.1
-Host: localhost:9527
-Content-Type: application/json
-
-{}
-```
+{% api_example startReload request empty http %}
 
 ## Response
 
 ### Accepted (202 Accepted)
 
-```http
-HTTP/1.1 202 Accepted
-Location: /api/operations/op-01HZX4K8W7
-Retry-After: 1
-Content-Type: application/json
-```
+{% api_example startReload 202 queued http %}
 
-```json
-{
-  "operation_id": "op-01HZX4K8W7",
-  "kind": "reload",
-  "status": "queued",
-  "href": "/api/operations/op-01HZX4K8W7"
-}
-```
-
-Poll [`GET /api/operations/{id}`](operations.html) for completion.
+Poll [`GET /api/v1/operations/{id}`](operations.html) for completion.
 
 ### Completed result
 
-```json
-{
-  "operation_id": "op-01HZX4K8W7",
-  "kind": "reload",
-  "status": "succeeded",
-  "created_at": "2026-08-15T09:29:59Z",
-  "started_at": "2026-08-15T09:30:00Z",
-  "finished_at": "2026-08-15T09:30:00Z",
-  "result": {
-    "active_generation_id": "generation-42",
-    "datapath_generation_id": "generation-42"
-  },
-  "error": null
-}
-```
+{% api_example getOperation 200 reload_complete_reload %}
 
 ### Fields
 
@@ -77,7 +43,7 @@ When reload fails, the previous active generation remains active.
 ## Example
 
 ```bash
-curl -X POST http://localhost:9527/api/operations/reload \
+curl -X POST http://localhost:9527/api/v1/operations/reload \
   -H 'Content-Type: application/json' \
   -d '{}'
 ```

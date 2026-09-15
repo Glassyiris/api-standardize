@@ -2,24 +2,21 @@
 title: Runtime
 ---
 
-# GET /api/runtime
+# GET /api/v1/runtime
 
 > Draft endpoint. This read-only snapshot describes the running process, active
 > configuration generation, eBPF datapath summary, and traffic visible to the
-> engine. Detailed eBPF state is available from [`GET /api/datapath`](datapath.html),
+> engine. Detailed eBPF state is available from [`GET /api/v1/datapath`](datapath.html),
 > and the independently pollable memory snapshot is available from
-> [`GET /api/runtime/memory`](runtime-memory.html).
+> [`GET /api/v1/runtime/memory`](runtime-memory.html).
 
 Runtime values are observations, not a promise that the engine can see every
-packet on the host. A value that is unsupported or not observable is `null`;
-zero remains a valid measured value.
+packet on the host. Unsupported or unobservable values are `null`; bounded
+counts use numeric `0`, while uint64 quantities use decimal string `"0"`.
 
 ## Request
 
-```http
-GET /api/runtime?detail=full HTTP/1.1
-Host: localhost:9527
-```
+{% api_request getRuntime %}
 
 `detail=summary` is the default and omits `process.pid`. `detail=full` includes
 it when the adapter can observe it.
@@ -28,79 +25,19 @@ it when the adapter can observe it.
 
 ### Success (200 OK)
 
-```json
-{
-  "observed_at": "2026-08-15T10:00:00Z",
-  "lifecycle": {
-    "state": "running",
-    "started_at": "2026-08-15T08:00:00Z",
-    "uptime_seconds": 7200
-  },
-  "generation": {
-    "active_id": "generation-42",
-    "config_revision": "17",
-    "state": "active",
-    "activated_at": "2026-08-15T09:30:00Z"
-  },
-  "datapath": {
-    "kind": "ebpf",
-    "state": "active",
-    "visibility": "partial",
-    "ebpf": {
-      "backend": "real",
-      "programs": "loaded",
-      "hooks": "attached",
-      "routing": {
-        "state": "published",
-        "generation_id": "generation-42"
-      },
-      "health": "healthy",
-      "last_error": null,
-      "checked_at": "2026-08-15T10:00:00Z"
-    }
-  },
-  "traffic": {
-    "scope": "visible",
-    "observed_by": "mixed",
-    "counter_since": "2026-08-15T08:00:00Z",
-    "connections": {
-      "tcp": 42,
-      "udp": 128,
-      "total": 170
-    },
-    "bytes": {
-      "upload": 123456789,
-      "download": 987654321
-    },
-    "rates": {
-      "window_seconds": 1,
-      "upload_bytes_per_second": 4096,
-      "download_bytes_per_second": 32768
-    }
-  },
-  "process": {
-    "pid": 1234,
-    "cpu_percent": null
-  },
-  "last_reload": {
-    "operation_id": "op-01HZX4K8W7",
-    "status": "succeeded",
-    "finished_at": "2026-08-15T09:30:00Z",
-    "error": null
-  }
-}
-```
+{% api_example getRuntime 200 snapshot %}
 
 ### Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
 | observed_at | string | Snapshot timestamp (RFC3339). |
+| instance_id | string | Unique adapter process incarnation; changes on restart. |
 | lifecycle.state | string | `starting`, `running`, `reloading`, `suspended`, `draining`, `degraded`, or `failed`. |
-| lifecycle.started_at | string | Process start time, when known. |
-| lifecycle.uptime_seconds | uint64 or null | Process uptime. |
+| lifecycle.started_at | string or null | Process start time, when known. |
+| lifecycle.uptime_seconds | decimal uint64 string or null | Process uptime. |
 | generation.active_id | string | Opaque active runtime generation. |
-| generation.config_revision | string or null | Configuration revision used by the active generation. |
+| generation.config_revision | opaque string or null | Configuration revision used by the active generation; preserve it without numeric parsing. |
 | generation.state | string | `active` or `reloading`. A pending generation is not active. |
 | datapath.kind | string | `ebpf`, `userspace`, `mock`, or `unknown`. |
 | datapath.state | string | `active`, `degraded`, `detached`, `failed`, `disabled`, or `unknown`. |
@@ -109,9 +46,9 @@ it when the adapter can observe it.
 | traffic.scope | string | Scope of the counters, normally `visible`. |
 | traffic.observed_by | string | `userspace`, `ebpf`, or `mixed`. |
 | traffic.counter_since | string or null | Start time of the reported cumulative counters. |
-| traffic.connections | object | Currently visible TCP and UDP connections or sessions. |
-| traffic.bytes | object | Cumulative visible bytes. |
-| traffic.rates | object or null | Current rates. `null` when the engine cannot provide them. |
+| traffic.connections | object | Currently visible TCP, UDP, and total connection counts. Each count is a bounded JSON integer or `null` when unobservable. |
+| traffic.bytes | object | Cumulative visible bytes. Each value is a decimal uint64 string or `null` when unobservable. |
+| traffic.rates | object or null | Current rates. `null` when unavailable; `window_seconds` stays numeric and byte rates are decimal uint64 strings or `null`. |
 | process.pid | uint32 or null, optional | Engine process ID with `detail=full`. |
 | process.cpu_percent | number or null | Process CPU usage when available. |
 | last_reload | object or null | Most recent reload operation and its result. |
@@ -132,10 +69,10 @@ active routing publication are all valid. A loaded program alone is not an
 active datapath.
 
 > **Note:** Per-connection details and byte counters are available from
-> [`GET /api/connections`](connections.html). They carry the same visibility limits.
+> [`GET /api/v1/connections`](connections.html). They carry the same visibility limits.
 
 Memory metrics are intentionally excluded from this snapshot so a dashboard
-can poll [`GET /api/runtime/memory`](runtime-memory.html) without repeatedly fetching
+can poll [`GET /api/v1/runtime/memory`](runtime-memory.html) without repeatedly fetching
 generation, datapath, traffic, and reload state.
 
 During reload, the old active generation remains reported until the new
@@ -143,8 +80,21 @@ generation has passed configuration validation and datapath publication. A
 failed reload therefore leaves `generation.active_id` unchanged and is exposed
 through `last_reload`.
 
+Generation identifiers are adapter-owned, instance-scoped opaque references
+with distinct namespaces for runtime commits and kernel policy publications.
+DNS cache epochs, outbound-registry generations, diagnostic generations and
+eBPF double-buffer slot numbers are not interchangeable configuration
+revisions. A reload that reuses an unchanged kernel policy can promote a new
+runtime generation while retaining the old datapath generation ID. The
+adapter must retain that relationship, not forge equal strings.
+
+Runtime fields are a coherent control-plane snapshot; independently sampled
+kernel/traffic counters retain their own timestamps. Reads of two separate
+HTTP resources are not an atomic transaction. Flow steps capture their
+actual producer generation and may legitimately span multiple generations.
+
 ## Example
 
 ```bash
-curl "http://localhost:9527/api/runtime?detail=full"
+curl "http://localhost:9527/api/v1/runtime?detail=full"
 ```

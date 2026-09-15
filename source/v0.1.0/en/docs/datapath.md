@@ -2,20 +2,17 @@
 title: Datapath
 ---
 
-# GET /api/datapath
+# GET /api/v1/datapath
 
 > Draft endpoint. Returns detailed datapath and eBPF state. The summary is
-> also included in [`GET /api/runtime`](runtime-status.html).
+> also included in [`GET /api/v1/runtime`](runtime-status.html).
 
 The endpoint reports whether the datapath is loaded, attached, published, and
 usable. `programs: loaded` alone does not mean that traffic is being handled.
 
 ## Request
 
-```http
-GET /api/datapath?detail=full HTTP/1.1
-Host: localhost:9527
-```
+{% api_request getDatapath %}
 
 `detail=summary` is the default and omits interface names, attachments, and map
 occupancy. `detail=full` includes the documented `attachments` and `maps`
@@ -25,44 +22,7 @@ objects when available.
 
 ### Success (200 OK)
 
-```json
-{
-  "observed_at": "2026-08-15T10:00:00Z",
-  "kind": "ebpf",
-  "state": "active",
-  "visibility": "partial",
-  "ebpf": {
-    "backend": "real",
-    "programs": "loaded",
-    "hooks": "attached",
-    "routing": {
-      "state": "published",
-      "generation_id": "generation-42",
-      "epoch": "3"
-    },
-    "attachments": [
-      {
-        "name": "wan_ingress",
-        "interface": "eth0",
-        "direction": "ingress",
-        "state": "attached"
-      }
-    ],
-    "maps": {
-      "state": "ready",
-      "conn_state": {
-        "occupancy": 1200,
-        "capacity": 524288,
-        "occupancy_known": true
-      }
-    },
-    "health": "healthy",
-    "last_error": null,
-    "checked_at": "2026-08-15T10:00:00Z"
-  },
-  "errors": []
-}
-```
+{% api_example getDatapath 200 active %}
 
 ### Fields
 
@@ -86,9 +46,16 @@ objects when available.
 | ebpf.checked_at | string | Time at which eBPF state was checked. |
 | errors | array | Current safe errors using `code`, `message`, and optional `details`. |
 
-The active generation reported by `ebpf.routing.generation_id` must match
-`generation.active_id` from `GET /api/runtime`. A staged or pending reload must
-not be reported as active before its routing publication succeeds.
+Map `capacity` and known `occupancy` are bounded numeric counts.
+`occupancy_known: false` requires `occupancy: null`, not a fabricated zero.
+
+`ebpf.routing.generation_id` identifies the actual published kernel policy,
+which must be valid for the active runtime generation. It need not equal
+`generation.active_id`: unchanged policies can be reused across reloads.
+A staged/pending publication is never reported as active. `epoch` is an
+engine-native routing epoch, not a substitute for configuration identity or
+the active double-buffer slot. Independently timed GETs may straddle reload;
+compare their observation times before diagnosing a mismatch.
 
 ## State rules
 
@@ -101,10 +68,10 @@ not be reported as active before its routing publication succeeds.
   `active` from configuration alone.
 
 This endpoint is read-only. Reload and lifecycle actions use
-`/api/operations/*`.
+`/api/v1/operations/*`.
 
 ## Example
 
 ```bash
-curl "http://localhost:9527/api/datapath?detail=full"
+curl "http://localhost:9527/api/v1/datapath?detail=full"
 ```

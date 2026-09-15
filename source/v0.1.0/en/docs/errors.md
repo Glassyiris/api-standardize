@@ -6,18 +6,7 @@ title: Errors
 
 All native API errors use one JSON envelope:
 
-```json
-{
-  "error": {
-    "code": "stale_revision",
-    "message": "The resource changed; fetch it again before retrying.",
-    "details": {
-      "field": null
-    }
-  },
-  "request_id": "request-01HZX4K8W5"
-}
-```
+{% api_example patchGroup 412 stale_revision %}
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -37,6 +26,10 @@ All native API errors use one JSON envelope:
 | 404 | `capability_not_supported` | The running adapter does not expose the resource or action. |
 | 409 | `state_conflict` | Current runtime state prevents the requested transition. |
 | 409 | `idempotency_conflict` | An idempotency key was reused with a different request body. |
+| 409 | `event_cursor_expired` | SSE cursor cannot be replayed; open a fresh stream and resnapshot. |
+| 409 | `snapshot_unavailable` | Routing simulation could not pin a consistent generation. |
+| 410 | `snapshot_expired` | Paginated flow snapshot expired; restart the page walk. |
+| 410 | `flow_expired` | Flow evidence was evicted/expired and a tombstone still exists. |
 | 412 | `stale_revision` | `If-Match` does not match the current resource revision. |
 | 413 | `request_too_large` | Request or requested fan-out exceeds an advertised limit. |
 | 415 | `unsupported_media_type` | Request `Content-Type` is unsupported. |

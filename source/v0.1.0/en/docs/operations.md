@@ -2,7 +2,7 @@
 title: Operations
 ---
 
-# GET /api/operations/{id}
+# GET /api/v1/operations/{id}
 
 > Draft endpoint. Reload, suspend, resume, probes, and asynchronous group
 > updates use one operation envelope.
@@ -12,64 +12,28 @@ running adapter. Clients must not derive its kind or creation time from the ID.
 
 ## Accepted operation
 
-An endpoint that queues work returns `202 Accepted` with `Location` and
-`Retry-After` headers:
+Every `202 Accepted` response MUST include `Location` and `Retry-After`.
+`Location` agrees with the envelope's `href`. `Retry-After` is a positive
+integer number of seconds; clients MUST wait at least that long before the
+next status poll. A running GET also includes it; a terminal GET need not.
+An event can prompt a new GET, but does not waive the polling floor. Polling
+too soon may return `429` with a fresh `Retry-After`.
 
-```http
-HTTP/1.1 202 Accepted
-Location: /api/operations/op-01HZX4K8W7
-Retry-After: 1
-Content-Type: application/json
-
-{
-  "operation_id": "op-01HZX4K8W7",
-  "kind": "reload",
-  "status": "queued",
-  "href": "/api/operations/op-01HZX4K8W7"
-}
-```
+{% api_example startReload 202 queued http %}
 
 ## Request
 
-```http
-GET /api/operations/op-01HZX4K8W7 HTTP/1.1
-Host: localhost:9527
-```
+{% api_request getOperation %}
 
 ## Response
 
 ### Running (200 OK)
 
-```json
-{
-  "operation_id": "op-01HZX4K8W7",
-  "kind": "reload",
-  "status": "running",
-  "created_at": "2026-08-15T09:29:59Z",
-  "started_at": "2026-08-15T09:30:00Z",
-  "finished_at": null,
-  "result": null,
-  "error": null
-}
-```
+{% api_example getOperation 200 reload_running %}
 
 ### Completed (200 OK)
 
-```json
-{
-  "operation_id": "op-01HZX4K8W7",
-  "kind": "reload",
-  "status": "succeeded",
-  "created_at": "2026-08-15T09:29:59Z",
-  "started_at": "2026-08-15T09:30:00Z",
-  "finished_at": "2026-08-15T09:30:01Z",
-  "result": {
-    "active_generation_id": "generation-42",
-    "datapath_generation_id": "generation-42"
-  },
-  "error": null
-}
-```
+{% api_example getOperation 200 reload_complete %}
 
 ### Fields
 
@@ -84,13 +48,18 @@ Host: localhost:9527
 | result | object or null | Kind-specific result, present only after success. |
 | error | object or null | Safe machine-readable error after failure. |
 
+A successful `group_update` result contains `group_id` and the applied
+`config_revision`; fetch the group for its current full representation.
+The operation's revision records that mutation's result even if another
+update has already advanced the live resource.
+
 `error` uses the same `code`, `message`, and optional `details` object defined
 by the [native error contract](errors.html). Raw engine errors, stack traces,
 configuration fragments, credentials, and local paths must not be returned.
 
 Completed operations remain queryable for at least the
 `resources.operations.retention_seconds` value advertised by
-`GET /api/capabilities`. Unknown or expired IDs return `404 operation_not_found`.
+`GET /api/v1/capabilities`. Unknown or expired IDs return `404 operation_not_found`.
 Cancellation is not part of the current draft.
 
 Operation status is visible to the principal that created it and to callers
@@ -103,8 +72,12 @@ method, and path. Reusing it with the same body returns the original operation;
 reusing it with a different body returns `409 idempotency_conflict`. Without a
 key, a retried POST may create another operation.
 
+Operation idempotency is scoped to the running instance; it is not a durable
+retry guarantee across process restart. A client with an uncertain result
+must re-observe runtime state rather than replay a mutation blindly.
+
 ## Example
 
 ```bash
-curl http://localhost:9527/api/operations/op-01HZX4K8W7
+curl http://localhost:9527/api/v1/operations/op-01HZX4K8W7
 ```

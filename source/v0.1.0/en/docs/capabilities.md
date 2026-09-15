@@ -2,7 +2,7 @@
 title: Capabilities
 ---
 
-# GET /api/capabilities
+# GET /api/v1/capabilities
 
 > Draft endpoint. This is the authoritative coarse-grained feature declaration
 > for the running adapter. Resource responses may further narrow capabilities
@@ -10,106 +10,13 @@ title: Capabilities
 
 ## Request
 
-```http
-GET /api/capabilities HTTP/1.1
-Host: localhost:9527
-```
+{% api_request getCapabilities %}
 
 ## Response
 
 ### Success (200 OK)
 
-```json
-{
-  "observed_at": "2026-08-15T10:00:00Z",
-  "limits": {
-    "max_request_target_bytes": 4096,
-    "max_header_bytes": 16384,
-    "max_json_body_bytes": 65536
-  },
-  "resources": {
-    "runtime": {
-      "available": true
-    },
-    "runtime_memory": {
-      "available": true,
-      "metrics": [
-        "process.rss_bytes",
-        "cgroup.current_bytes",
-        "cgroup.limit_bytes",
-        "cgroup.events.high",
-        "cgroup.events.oom",
-        "cgroup.events.oom_kill"
-      ]
-    },
-    "datapath": {
-      "available": true,
-      "kinds": ["ebpf"],
-      "details": ["attachments", "maps"]
-    },
-    "nodes": {
-      "available": true
-    },
-    "groups": {
-      "available": true,
-      "config_patch": true,
-      "selection": true,
-      "max_patch_operations": 32
-    },
-    "probes": {
-      "available": true,
-      "targets": ["node", "group"],
-      "transports": ["tcp", "udp"],
-      "ip_versions": ["ipv4", "ipv6"],
-      "limits": {
-        "max_members_per_job": 128,
-        "max_results_per_job": 512,
-        "max_active_jobs": 4,
-        "max_queued_jobs": 16,
-        "max_concurrent_per_target": 2,
-        "job_timeout_ms": 30000,
-        "per_principal_requests_per_minute": 60,
-        "global_requests_per_minute": 240
-      }
-    },
-    "connections": {
-      "available": true
-    },
-    "dns_query": {
-      "available": true,
-      "record_types": ["A", "AAAA", "HTTPS"],
-      "limits": {
-        "max_types_per_request": 8,
-        "query_timeout_ms": 5000,
-        "max_response_bytes": 65536,
-        "per_principal_requests_per_minute": 120,
-        "global_requests_per_minute": 480
-      }
-    },
-    "dns_cache": {
-      "available": true,
-      "read": true,
-      "delete_entry": true,
-      "delete_name": true,
-      "flush": true,
-      "entry_kinds": ["positive", "negative"]
-    },
-    "operations": {
-      "available": true,
-      "retention_seconds": 300
-    },
-    "reload": {
-      "available": true
-    },
-    "suspend": {
-      "available": false
-    },
-    "resume": {
-      "available": false
-    }
-  }
-}
-```
+{% api_example getCapabilities 200 available %}
 
 ### Rules
 
@@ -132,8 +39,35 @@ implementation must not advertise a metric that it always reports as `null`.
 `dns_cache.entry_kinds` declares which positive or negative cache entries can
 be read and mutated without silently hiding another cache class.
 
+## Conformance profiles
+
+`profiles` is an array, not a feature inferred from engine identity. The
+example is an illustrative partial adapter, **not honk's current response**.
+
+- **`base`** requires discovery, version, capabilities, runtime, the shared
+  authentication/error/visibility rules, and honest capability declarations.
+  Every resource key in this page's `resources` object MUST have an entry,
+  even when unavailable; discovery/version/capabilities themselves are mandatory.
+  Operations are required whenever an advertised action is asynchronous;
+  events and mutations are otherwise optional. dae can implement this
+  profile without claiming honk-only features.
+- **`full_transparency`** additionally requires nodes, groups, connections,
+  recorded flows and events; observed rule inputs/short-circuit decisions,
+  dial-mode verification, DNS linkage, reroute reasons, actual member/leaf
+  attempts, and lifecycle outcomes for managed traffic, including direct and
+  blocked decisions. It requires all recorded-flow acceptance scenarios,
+  no intentional sampling in these scopes, and explicit loss/retention
+  accounting. Early bypass scope may remain uninstrumented only if declared
+  as an exclusion; this is not a claim to observe all host traffic.
+
+Profile support describes implemented instrumentation, not losslessness of
+every snapshot. Buffer loss, disabled recording or redaction downgrades the
+current coverage and affected traces even on a conforming engine. A
+userspace-only adapter MUST NOT advertise `full_transparency`. A simulator,
+Clash connection list, log parser, or map snapshot cannot satisfy it.
+
 ## Example
 
 ```bash
-curl http://localhost:9527/api/capabilities
+curl http://localhost:9527/api/v1/capabilities
 ```
